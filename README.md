@@ -1,3 +1,99 @@
+# Financial Management System
+
+## 🎯 Strategic Objective
+
+This application is a long-horizon capital management platform designed to optimize the probability of achieving:
+
+- **$1,000,000 net worth (excluding home equity) by 2028**
+- **$1,500,000 net worth (excluding home equity) by 2030**
+
+The system focuses on disciplined capital allocation, structured modeling, and measurable financial progress.
+
+---
+
+## 🧠 Design Philosophy
+
+- Long-horizon thinking over short-term reaction  
+- Systems over impulses  
+- Measurable metrics over emotional decisions  
+- Risk-aware capital allocation  
+- Continuous strategic iteration  
+
+---
+
+## 🚀 Current Capabilities
+
+- Net worth tracking  
+- Portfolio allocation tracking  
+- Manual financial data entry  
+- SQLite-backed persistence  
+- Local-first development (`npm run dev`)  
+
+---
+
+## 🛣 Strategic Roadmap
+
+Planned expansion modules:
+
+- Financial Independence glide-path dashboard  
+- Required CAGR & contribution modeling  
+- Scenario analysis (Bull / Base / Bear)  
+- Allocation concentration risk detection  
+- Income expansion tracking module  
+- Monte Carlo simulation engine  
+- Downside volatility modeling  
+
+---
+
+## 🔐 Security & Data Model
+
+- All personal financial data is manually entered  
+- SQLite database excluded from version control  
+- Environment variables ignored via `.gitignore`  
+
+---
+
+## 🏗 Architecture
+
+- **Framework:** Next.js  
+- **Database:** SQLite  
+- **Language:** TypeScript  
+- **Development Mode:** Local (`npm run dev`)  
+- **Version Control:** GitHub (database files excluded)  
+
+---
+
+## 📈 Long-Term Vision
+
+Evolve this platform into a disciplined financial operating system that:
+
+- Tracks capital growth trajectory  
+- Models risk exposure and allocation drift  
+- Simulates long-term outcomes  
+- Supports income expansion strategies  
+- Increases probability of achieving financial independence by 2030  
+
+---
+
+## 🔄 Next Development Phase
+
+1. Architecture audit  
+2. Strategic module layering  
+3. Risk modeling framework  
+4. Financial independence trajectory visualization  
+5. Income leverage tracking  
+
+---
+
+## ⚠️ Development Notes
+
+- Do not commit `.env` files  
+- Do not commit `.db` files  
+- Database schema changes require explicit review  
+- Strategic modules should align with 2028 / 2030 targets  
+
+---
+
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started
