@@ -1,0 +1,37 @@
+[
+  {
+    "asset_id": "NVDA",
+    "shares": 120,
+    "entry_price": 310,
+    "cost_basis": 37200,
+    "sort_order": 0
+  },
+  {
+    "asset_id": "META",
+    "shares": 90,
+    "entry_price": 240,
+    "cost_basis": 21600,
+    "sort_order": 1
+  },
+  {
+    "asset_id": "BTC",
+    "shares": 1.4,
+    "entry_price": 32000,
+    "cost_basis": 44800,
+    "sort_order": 2
+  },
+  {
+    "asset_id": "CASH",
+    "shares": 50470,
+    "entry_price": 1,
+    "cost_basis": 50470,
+    "sort_order": 3
+  },
+  {
+    "asset_id": "TSLA",
+    "shares": 30,
+    "entry_price": 160,
+    "cost_basis": 4800,
+    "sort_order": 4
+  }
+]

@@ -1,0 +1,37 @@
+[
+  {
+    "date": "2025-04-01",
+    "value": 302000,
+    "sort_order": 0
+  },
+  {
+    "date": "2025-05-01",
+    "value": 326500,
+    "sort_order": 1
+  },
+  {
+    "date": "2025-06-01",
+    "value": 344200,
+    "sort_order": 2
+  },
+  {
+    "date": "2025-07-01",
+    "value": 368700,
+    "sort_order": 3
+  },
+  {
+    "date": "2025-08-01",
+    "value": 381900,
+    "sort_order": 4
+  },
+  {
+    "date": "2025-09-01",
+    "value": 398200,
+    "sort_order": 5
+  },
+  {
+    "date": "2025-10-01",
+    "value": 412880,
+    "sort_order": 6
+  }
+]

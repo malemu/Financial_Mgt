@@ -1,0 +1,6 @@
+[
+  {
+    "id": 1,
+    "data": "{\"horizonYears\":5,\"monthlyIncome\":8000,\"monthlyLivingExpenses\":1800,\"scenarioFocus\":\"buyNow\",\"investmentAssets\":[{\"id\":\"us-stocks\",\"name\":\"STOCK\",\"cagr\":16,\"weight\":70},{\"id\":\"bonds\",\"name\":\"BOND\",\"cagr\":15,\"weight\":30}],\"rentInvest\":{\"rent\":{\"monthlyRent\":2600,\"rentInflationRate\":3,\"rentersInsuranceMonthly\":15},\"investments\":{\"monthlyContribution\":2600,\"lumpSum\":0}},\"buyNow\":{\"buy\":{\"purchasePrice\":650000,\"downPaymentAmount\":100000,\"downPaymentPercent\":15.384615384615385,\"mortgageRateAnnual\":6,\"termYears\":30,\"propertyTaxRate\":1,\"insuranceAnnual\":1400,\"maintenanceRate\":1,\"hoaMonthly\":100,\"homeGrowthRate\":3.5},\"investments\":{\"monthlyContribution\":800,\"lumpSum\":0}},\"rentBuyLater\":{\"rent\":{\"monthlyRent\":2600,\"rentInflationRate\":3,\"rentersInsuranceMonthly\":15},\"buy\":{\"purchasePrice\":650000,\"downPaymentAmount\":100000,\"downPaymentPercent\":15.384615384615385,\"mortgageRateAnnual\":6,\"termYears\":30,\"propertyTaxRate\":1,\"insuranceAnnual\":1400,\"maintenanceRate\":1,\"hoaMonthly\":100,\"homeGrowthRate\":3.5},\"investmentsPre\":{\"monthlyContribution\":3000,\"lumpSum\":0},\"investmentsPost\":{\"monthlyContribution\":0,\"lumpSum\":0},\"buyLater\":{\"buyAfterYears\":3}}}"
+  }
+]

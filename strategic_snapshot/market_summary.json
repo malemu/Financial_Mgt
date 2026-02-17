@@ -1,0 +1,38 @@
+[
+  {
+    "ticker": "BTC",
+    "latest_price": 68716.27,
+    "cagr": 0.6537,
+    "one_year_return": -0.2403,
+    "volatility": 0.6424,
+    "max_drawdown": -0.8297,
+    "above_ma200": false
+  },
+  {
+    "ticker": "GOOG",
+    "latest_price": 306.02,
+    "cagr": 0.236,
+    "one_year_return": 0.6288,
+    "volatility": 0.2865,
+    "max_drawdown": -0.446,
+    "above_ma200": true
+  },
+  {
+    "ticker": "NVDA",
+    "latest_price": 182.81,
+    "cagr": 0.7458,
+    "one_year_return": 0.3512,
+    "volatility": 0.4981,
+    "max_drawdown": -0.6634,
+    "above_ma200": true
+  },
+  {
+    "ticker": "TSLA",
+    "latest_price": 417.44,
+    "cagr": 0.4172,
+    "one_year_return": 0.1728,
+    "volatility": 0.5919,
+    "max_drawdown": -0.7363,
+    "above_ma200": true
+  }
+]
