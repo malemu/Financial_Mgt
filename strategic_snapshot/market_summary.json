@@ -1,10 +1,10 @@
 [
   {
     "ticker": "BTC",
-    "latest_price": 68716.27,
-    "cagr": 0.6537,
-    "one_year_return": -0.2403,
-    "volatility": 0.6424,
+    "latest_price": 68465.86,
+    "cagr": 0.6525,
+    "one_year_return": -0.2194,
+    "volatility": 0.6422,
     "max_drawdown": -0.8297,
     "above_ma200": false
   },

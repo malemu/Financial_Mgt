@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "export:snapshot": "node scripts/exportSnapshot.js"
+
   },
   "dependencies": {
     "@next/swc-win32-x64-msvc": "^16.1.4",

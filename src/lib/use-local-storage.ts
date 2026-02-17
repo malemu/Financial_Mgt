@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 const buildUrl = (key: string) => `/api/data/${encodeURIComponent(key)}`;
 
 export function useLocalStorageState<T>(key: string, initialValue: T) {
   const [value, setValue] = useState<T>(initialValue);
+  const persistQueueRef = useRef<Promise<void>>(Promise.resolve());
 
   const persist = useCallback(
     async (nextValue: T) => {
@@ -14,6 +15,19 @@ export function useLocalStorageState<T>(key: string, initialValue: T) {
       });
     },
     [key]
+  );
+
+  const enqueuePersist = useCallback(
+    (nextValue: T) => {
+      persistQueueRef.current = persistQueueRef.current
+        .catch(() => undefined)
+        .then(() => persist(nextValue))
+        .catch((error) => {
+          console.error(`Failed to persist ${key}`, error);
+        });
+      return persistQueueRef.current;
+    },
+    [key, persist]
   );
 
   useEffect(() => {
@@ -36,7 +50,7 @@ export function useLocalStorageState<T>(key: string, initialValue: T) {
       if (stored) {
         try {
           const parsed = JSON.parse(stored) as T;
-          await persist(parsed);
+          await enqueuePersist(parsed);
           window.localStorage.removeItem(key);
           if (!cancelled) setValue(parsed);
           return;
@@ -45,7 +59,7 @@ export function useLocalStorageState<T>(key: string, initialValue: T) {
         }
       }
 
-      await persist(initialValue);
+      await enqueuePersist(initialValue);
       if (!cancelled) setValue(initialValue);
     };
 
@@ -53,17 +67,17 @@ export function useLocalStorageState<T>(key: string, initialValue: T) {
     return () => {
       cancelled = true;
     };
-  }, [initialValue, key, persist]);
+  }, [enqueuePersist, initialValue, key]);
 
   const setAndPersist = useCallback(
     (next: T | ((prev: T) => T)) => {
       setValue((prev) => {
         const resolved = typeof next === "function" ? (next as (prev: T) => T)(prev) : next;
-        void persist(resolved);
+        void enqueuePersist(resolved);
         return resolved;
       });
     },
-    [persist]
+    [enqueuePersist]
   );
 
   return [value, setAndPersist] as const;

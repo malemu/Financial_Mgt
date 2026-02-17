@@ -31260,6 +31260,30 @@
     "sort_order": 20260215
   },
   {
+    "ticker": "BTC",
+    "date": "2026-02-16",
+    "open": 68792,
+    "high": 70089.99,
+    "low": 67251.81,
+    "close": 68858.13,
+    "volume": 6626.85996745,
+    "data_source": "Coinbase Exchange (Daily)",
+    "fetched_at": "2026-02-17T05:05:30.867Z",
+    "sort_order": 20260216
+  },
+  {
+    "ticker": "BTC",
+    "date": "2026-02-17",
+    "open": 68859.55,
+    "high": 69199.51,
+    "low": 68232.79,
+    "close": 68465.86,
+    "volume": 1145.2391989,
+    "data_source": "Coinbase Exchange (Daily)",
+    "fetched_at": "2026-02-17T05:05:30.867Z",
+    "sort_order": 20260217
+  },
+  {
     "ticker": "GOOG",
     "date": "2016-01-28",
     "open": 36.111,
