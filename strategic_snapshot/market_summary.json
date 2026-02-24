@@ -1,38 +1,74 @@
 [
   {
     "ticker": "BTC",
-    "latest_price": 67047.99,
-    "cagr": 0.6488,
-    "one_year_return": -0.1561,
-    "volatility": 0.6421,
+    "latest_price": 64290,
+    "cagr": 0.6403,
+    "one_year_return": -0.2195,
+    "volatility": 0.6416,
     "max_drawdown": -0.8297,
     "above_ma200": false
   },
   {
     "ticker": "GOOG",
-    "latest_price": 302.82,
-    "cagr": 0.2346,
-    "one_year_return": 0.6205,
-    "volatility": 0.2864,
+    "latest_price": 311.69,
+    "cagr": 0.2378,
+    "one_year_return": 0.7165,
+    "volatility": 0.2865,
     "max_drawdown": -0.446,
     "above_ma200": true
   },
   {
+    "ticker": "IWM",
+    "latest_price": 263.49,
+    "cagr": 0.1111,
+    "one_year_return": 0.2185,
+    "volatility": 0.2296,
+    "max_drawdown": -0.4113,
+    "above_ma200": true
+  },
+  {
     "ticker": "NVDA",
-    "latest_price": 184.97,
-    "cagr": 0.7474,
-    "one_year_return": 0.3322,
-    "volatility": 0.498,
+    "latest_price": 191.55,
+    "cagr": 0.752,
+    "one_year_return": 0.4249,
+    "volatility": 0.4977,
     "max_drawdown": -0.6634,
     "above_ma200": true
   },
   {
+    "ticker": "QQQ",
+    "latest_price": 607.39,
+    "cagr": 0.2026,
+    "one_year_return": 0.1699,
+    "volatility": 0.222,
+    "max_drawdown": -0.3512,
+    "above_ma200": true
+  },
+  {
+    "ticker": "SPY",
+    "latest_price": 687.37,
+    "cagr": 0.1549,
+    "one_year_return": 0.1545,
+    "volatility": 0.1789,
+    "max_drawdown": -0.3372,
+    "above_ma200": true
+  },
+  {
     "ticker": "TSLA",
-    "latest_price": 410.63,
-    "cagr": 0.4147,
-    "one_year_return": 0.154,
-    "volatility": 0.5918,
+    "latest_price": 399.83,
+    "cagr": 0.4102,
+    "one_year_return": 0.1836,
+    "volatility": 0.5914,
     "max_drawdown": -0.7363,
+    "above_ma200": true
+  },
+  {
+    "ticker": "VIX",
+    "latest_price": 21.01,
+    "cagr": 0.0055,
+    "one_year_return": -0.1063,
+    "volatility": 1.1287,
+    "max_drawdown": -0.887,
     "above_ma200": true
   }
 ]

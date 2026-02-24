@@ -1,0 +1,38 @@
+[
+  {
+    "ticker": "SPY",
+    "latest_price": 687.37,
+    "cagr": 0.1549,
+    "one_year_return": 0.1545,
+    "volatility": 0.1789,
+    "max_drawdown": -0.3372,
+    "above_ma200": true
+  },
+  {
+    "ticker": "QQQ",
+    "latest_price": 607.39,
+    "cagr": 0.2026,
+    "one_year_return": 0.1699,
+    "volatility": 0.222,
+    "max_drawdown": -0.3512,
+    "above_ma200": true
+  },
+  {
+    "ticker": "IWM",
+    "latest_price": 263.49,
+    "cagr": 0.1111,
+    "one_year_return": 0.2185,
+    "volatility": 0.2296,
+    "max_drawdown": -0.4113,
+    "above_ma200": true
+  },
+  {
+    "ticker": "VIX",
+    "latest_price": 21.01,
+    "cagr": 0.0055,
+    "one_year_return": -0.1063,
+    "volatility": 1.1287,
+    "max_drawdown": -0.887,
+    "above_ma200": true
+  }
+]

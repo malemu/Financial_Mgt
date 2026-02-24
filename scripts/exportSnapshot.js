@@ -6,6 +6,7 @@ const db = new Database("./data/financial_mgt.db");
 
 const snapshotDir = path.join(process.cwd(), "strategic_snapshot");
 if (!fs.existsSync(snapshotDir)) fs.mkdirSync(snapshotDir);
+const macroTickers = ["SPY", "QQQ", "IWM", "VIX"];
 
 function stdDev(values) {
   const mean = values.reduce((a, b) => a + b, 0) / values.length;
@@ -34,6 +35,32 @@ function exportRawPriceHistory() {
   );
 
   console.log(`Exported raw price history (${rows.length} rows)`);
+}
+
+function exportMacroPriceHistory() {
+  const rows = db.prepare(`
+    SELECT *
+    FROM price_history
+    WHERE ticker IN (${macroTickers.map(() => "?").join(", ")})
+    ORDER BY ticker, date ASC
+  `).all(...macroTickers);
+
+  fs.writeFileSync(
+    path.join(snapshotDir, "macro_price_history.json"),
+    JSON.stringify(rows, null, 2)
+  );
+
+  const byTicker = {};
+  macroTickers.forEach((ticker) => {
+    byTicker[ticker] = rows.filter((row) => row.ticker === ticker);
+  });
+
+  fs.writeFileSync(
+    path.join(snapshotDir, "macro_price_history_by_ticker.json"),
+    JSON.stringify(byTicker, null, 2)
+  );
+
+  console.log(`Exported macro price history (${rows.length} rows)`);
 }
 
 
@@ -121,6 +148,64 @@ function exportMarketSummary() {
   console.log("Market summary exported.");
 }
 
+function exportMacroSummary() {
+  const summary = [];
+
+  macroTickers.forEach((ticker) => {
+    const rows = db.prepare(`
+      SELECT date, close
+      FROM price_history
+      WHERE ticker = ?
+      ORDER BY date ASC
+    `).all(ticker);
+
+    if (rows.length < 50) return;
+
+    const prices = rows.map((r) => r.close);
+    const latestPrice = prices[prices.length - 1];
+    const firstPrice = prices[0];
+
+    const returns = [];
+    for (let i = 1; i < prices.length; i++) {
+      returns.push((prices[i] - prices[i - 1]) / prices[i - 1]);
+    }
+
+    const years = prices.length / 252;
+    const cagr = Math.pow(latestPrice / firstPrice, 1 / years) - 1;
+
+    const oneYearIndex = prices.length - 252;
+    const oneYearReturn =
+      oneYearIndex > 0
+        ? (latestPrice - prices[oneYearIndex]) / prices[oneYearIndex]
+        : null;
+
+    const volatility = stdDev(returns) * Math.sqrt(252);
+    const mdd = maxDrawdown(prices);
+    const ma200 =
+      prices.length >= 200
+        ? prices.slice(-200).reduce((a, b) => a + b, 0) / 200
+        : null;
+
+    summary.push({
+      ticker,
+      latest_price: latestPrice,
+      cagr: Number(cagr.toFixed(4)),
+      one_year_return:
+        oneYearReturn !== null ? Number(oneYearReturn.toFixed(4)) : null,
+      volatility: Number(volatility.toFixed(4)),
+      max_drawdown: Number(mdd.toFixed(4)),
+      above_ma200: ma200 !== null ? latestPrice > ma200 : null,
+    });
+  });
+
+  fs.writeFileSync(
+    path.join(snapshotDir, "macro_summary.json"),
+    JSON.stringify(summary, null, 2)
+  );
+
+  console.log("Macro summary exported.");
+}
+
 function exportStrategicTables() {
   const importantTables = [
     "goals",
@@ -146,7 +231,9 @@ function exportStrategicTables() {
 
 exportStrategicTables();
 exportMarketSummary();
+exportMacroSummary();
 exportRawPriceHistory();
+exportMacroPriceHistory();
 
 
 console.log("Strategic snapshot complete.");
