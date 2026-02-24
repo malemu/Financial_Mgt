@@ -1,6 +1,7 @@
-export type AssetType = "stock" | "crypto" | "cash";
+export type AssetType = "stock" | "crypto" | "cash" | "index";
 export type AllocationRole = "core growth" | "optionality" | "ballast";
 export type MarketRegime = "risk-on" | "neutral" | "risk-off";
+export type MarketCycleRegime = "Bull" | "Transitional" | "Bear";
 export type ActionType = "ADD" | "HOLD" | "TRIM";
 export type ConfidenceLevel = "low" | "medium" | "high";
 
@@ -103,4 +104,20 @@ export type PriceHistoryPoint = {
   volume: number;
   data_source: string;
   fetched_at: string;
+};
+
+export type MarketRegimeSummary = {
+  date: string;
+  regime: MarketCycleRegime;
+  sp500Above200: boolean;
+  ndxAbove200: boolean;
+  vixLevel: number;
+  drawdownFromATH: number;
+  sp500Close: number;
+  sp500_50dma: number;
+  sp500_200dma: number;
+  sp500Vs200Pct: number;
+  ndxClose: number;
+  ndx_200dma: number;
+  ndxVs200Pct: number;
 };

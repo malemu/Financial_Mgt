@@ -19,6 +19,13 @@ const initDb = () => {
       target_year integer not null
     );
 
+    create table if not exists assets (
+      id integer primary key autoincrement,
+      ticker text not null unique,
+      name text not null,
+      type text not null
+    );
+
     create table if not exists allocations (
       id text primary key,
       asset_id text not null,
@@ -133,10 +140,28 @@ const initDb = () => {
       fetched_at text not null,
       sort_order integer not null
     );
+
+    create table if not exists market_metrics (
+      id text primary key,
+      date text not null unique,
+      sp500_close real not null,
+      sp500_50dma real not null,
+      sp500_200dma real not null,
+      sp500_above_200 integer not null,
+      ndx_close real not null,
+      ndx_200dma real not null,
+      ndx_above_200 integer not null,
+      vix_level real not null,
+      drawdown_from_ath real not null,
+      regime text not null,
+      created_at text not null
+    );
   `);
 
   ensurePriceHistorySchema(instance);
+  ensureAssetsSchema(instance);
   ensureLocalMarketActivitySchema(instance);
+  ensureMarketMetricsSchema(instance);
   migrateFromKvStore(instance);
   return instance;
 };
@@ -239,6 +264,69 @@ const ensureLocalMarketActivitySchema = (instance: Database.Database) => {
 
   instance.exec(
     "create unique index if not exists idx_local_market_activity_unique on local_market_activity (market_id, date)"
+  );
+};
+
+const ensureAssetsSchema = (instance: Database.Database) => {
+  const table = instance
+    .prepare("select name from sqlite_master where type='table' and name='assets'")
+    .get();
+  if (!table) return;
+
+  const columns = instance
+    .prepare("pragma table_info('assets')")
+    .all()
+    .map((col: any) => col.name);
+  const required: Record<string, string> = {
+    ticker: "text",
+    name: "text",
+    type: "text",
+  };
+  Object.entries(required).forEach(([col, type]) => {
+    if (!columns.includes(col)) {
+      instance.exec(`alter table assets add column ${col} ${type}`);
+    }
+  });
+
+  instance.exec("create unique index if not exists idx_assets_ticker on assets (ticker)");
+};
+
+const ensureMarketMetricsSchema = (instance: Database.Database) => {
+  const table = instance
+    .prepare(
+      "select name from sqlite_master where type='table' and name='market_metrics'"
+    )
+    .get();
+  if (!table) return;
+
+  const columns = instance
+    .prepare("pragma table_info('market_metrics')")
+    .all()
+    .map((col: any) => col.name);
+
+  const required: Record<string, string> = {
+    id: "text",
+    date: "text",
+    sp500_close: "real",
+    sp500_50dma: "real",
+    sp500_200dma: "real",
+    sp500_above_200: "integer",
+    ndx_close: "real",
+    ndx_200dma: "real",
+    ndx_above_200: "integer",
+    vix_level: "real",
+    drawdown_from_ath: "real",
+    regime: "text",
+    created_at: "text",
+  };
+  Object.entries(required).forEach(([col, type]) => {
+    if (!columns.includes(col)) {
+      instance.exec(`alter table market_metrics add column ${col} ${type}`);
+    }
+  });
+
+  instance.exec(
+    "create unique index if not exists idx_market_metrics_date on market_metrics (date)"
   );
 };
 

@@ -31284,6 +31284,18 @@
     "sort_order": 20260217
   },
   {
+    "ticker": "BTC",
+    "date": "2026-02-18",
+    "open": 67466.7,
+    "high": 68438.84,
+    "low": 66666,
+    "close": 67047.99,
+    "volume": 5815.11263445,
+    "data_source": "Coinbase Exchange (Daily)",
+    "fetched_at": "2026-02-18T16:57:28.750Z",
+    "sort_order": 20260218
+  },
+  {
     "ticker": "GOOG",
     "date": "2016-01-28",
     "open": 36.111,
@@ -61606,6 +61618,18 @@
     "data_source": "Alpha Vantage (Daily)",
     "fetched_at": "2026-02-15T18:29:13.932Z",
     "sort_order": 20260213
+  },
+  {
+    "ticker": "GOOG",
+    "date": "2026-02-17",
+    "open": 300.64,
+    "high": 304.89,
+    "low": 296.9,
+    "close": 302.82,
+    "volume": 23750758,
+    "data_source": "Alpha Vantage (Daily)",
+    "fetched_at": "2026-02-18T16:57:28.750Z",
+    "sort_order": 20260217
   },
   {
     "ticker": "NVDA",
@@ -91932,6 +91956,18 @@
     "sort_order": 20260213
   },
   {
+    "ticker": "NVDA",
+    "date": "2026-02-17",
+    "open": 181.75,
+    "high": 187.15,
+    "low": 179.18,
+    "close": 184.97,
+    "volume": 162276860,
+    "data_source": "Alpha Vantage (Daily)",
+    "fetched_at": "2026-02-18T16:57:28.750Z",
+    "sort_order": 20260217
+  },
+  {
     "ticker": "TSLA",
     "date": "2016-01-28",
     "open": 12.7193,
@@ -122254,5 +122290,17 @@
     "data_source": "Alpha Vantage (Daily)",
     "fetched_at": "2026-02-15T18:29:13.932Z",
     "sort_order": 20260213
+  },
+  {
+    "ticker": "TSLA",
+    "date": "2026-02-17",
+    "open": 412.36,
+    "high": 413.72,
+    "low": 400.51,
+    "close": 410.63,
+    "volume": 59678789,
+    "data_source": "Alpha Vantage (Daily)",
+    "fetched_at": "2026-02-18T16:57:28.750Z",
+    "sort_order": 20260217
   }
 ]

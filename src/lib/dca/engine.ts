@@ -1,4 +1,6 @@
 import type { AssetType } from "@/lib/types";
+import { BEAR_TIER1_ASSETS } from "@/lib/market-regime-constants";
+import { MarketCycleRegime } from "@/lib/types";
 
 export type PricePoint = {
   date: string;
@@ -58,6 +60,11 @@ export type DcaEngineResult = {
   metricsSeries: DcaMetrics[];
   schedule: DcaScheduleEntry[];
   simulation: DcaSimulationResult;
+};
+
+export type DcaRegimeContext = {
+  regime: MarketCycleRegime;
+  assetId: string;
 };
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -229,7 +236,8 @@ export const mapScoreToMultiplier = (score: number) => {
 const buildSchedule = (
   history: PricePoint[],
   settings: DcaSettings,
-  metricsSeries: DcaMetrics[]
+  metricsSeries: DcaMetrics[],
+  regimeContext?: DcaRegimeContext
 ) => {
   if (!history.length) return [];
   const start = settings.startDate ?? history[0].date;
@@ -246,6 +254,17 @@ const buildSchedule = (
       ? 14
       : 30;
 
+  const regimeMultiplier =
+    !regimeContext
+      ? 1
+      : regimeContext.regime === "Bull"
+      ? 1
+      : regimeContext.regime === "Transitional"
+      ? 0.7
+      : BEAR_TIER1_ASSETS.has(regimeContext.assetId.toUpperCase())
+      ? 1.25
+      : 1;
+
   while (current <= endMs) {
     const scheduledDate = new Date(current).toISOString().slice(0, 10);
     const index = history.findIndex((point) => point.date >= scheduledDate);
@@ -259,7 +278,7 @@ const buildSchedule = (
       price: point.close,
       metrics,
       multiplier,
-      allocation: settings.baseContribution * multiplier,
+      allocation: settings.baseContribution * multiplier * regimeMultiplier,
     });
     current += stepDays * MS_PER_DAY;
   }
@@ -306,7 +325,8 @@ const buildSimulationSummary = (
 export const runDcaEngine = (
   historyInput: PricePoint[],
   assetType: AssetType,
-  settings: DcaSettings
+  settings: DcaSettings,
+  regimeContext?: DcaRegimeContext
 ): DcaEngineResult => {
   const history = [...historyInput]
     .filter((point) => point.date && Number.isFinite(point.close))
@@ -392,7 +412,7 @@ export const runDcaEngine = (
     };
   });
 
-  const schedule = buildSchedule(windowedHistory, settings, metricsSeries);
+  const schedule = buildSchedule(windowedHistory, settings, metricsSeries, regimeContext);
   const lastPrice = windowedHistory[windowedHistory.length - 1].close;
   const standard = buildSimulationSummary(
     schedule,

@@ -128,7 +128,8 @@ function exportStrategicTables() {
     "allocations",
     "net_worth_history",
     "buy_rent_inputs",
-    "local_market_activity"
+    "local_market_activity",
+    "market_metrics"
   ];
 
   importantTables.forEach(name => {

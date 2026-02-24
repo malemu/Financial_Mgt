@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
+import { updateMarketMetrics } from "@/lib/server/marketRegimeEngine";
 
 export const runtime = "nodejs";
 
@@ -98,11 +99,32 @@ export async function POST(request: Request) {
 
   const inserted = tx(rows);
   const skipped = rows.length - inserted;
+  let marketMetrics = null;
+  try {
+    marketMetrics = updateMarketMetrics(new Date());
+  } catch (error) {
+    const detail =
+      error instanceof Error
+        ? error.message
+        : "Failed to rebuild market metrics after upload.";
+    return NextResponse.json(
+      {
+        error: "Upload completed, but market metrics rebuild failed.",
+        detail,
+        ticker,
+        inserted,
+        skipped,
+        fetched_at: fetchedAt,
+      },
+      { status: 500 }
+    );
+  }
 
   return NextResponse.json({
     ticker,
     inserted,
     skipped,
     fetched_at: fetchedAt,
+    market_metrics: marketMetrics,
   });
 }

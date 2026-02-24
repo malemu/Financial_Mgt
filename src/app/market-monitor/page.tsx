@@ -1,7 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import type { Allocation, AssetType, Holding, PriceMap } from "@/lib/types";
+import Link from "next/link";
+import type {
+  Allocation,
+  AssetType,
+  Holding,
+  MarketRegimeSummary,
+  PriceMap,
+} from "@/lib/types";
 import {
   defaultAllocations,
   defaultHoldings,
@@ -15,6 +22,8 @@ import {
   runDcaEngine,
 } from "@/lib/dca/engine";
 import { useLocalStorageState } from "@/lib/use-local-storage";
+import MarketStatusPanel from "@/components/MarketStatusPanel";
+import WeeklyStockChart from "@/components/WeeklyStockChart";
 
 const formatCurrency = (value: number) =>
   value.toLocaleString("en-US", {
@@ -22,13 +31,6 @@ const formatCurrency = (value: number) =>
     currency: "USD",
     maximumFractionDigits: 2,
   });
-
-const formatCurrencyCompact = (value: number) => {
-  const abs = Math.abs(value);
-  if (abs >= 1_000_000) return `$${(value / 1_000_000).toFixed(1)}M`;
-  if (abs >= 1_000) return `$${(value / 1_000).toFixed(0)}k`;
-  return `$${Math.round(value)}`;
-};
 
 const formatPercent = (value: number) => `${value.toFixed(1)}%`;
 
@@ -39,13 +41,6 @@ const downsampleIndexes = (total: number, maxPoints: number) => {
   return Array.from({ length: maxPoints }, (_, i) =>
     Math.min(total - 1, Math.round(i * step))
   );
-};
-
-const scoreColor = (score: number) => {
-  if (score >= 80) return "rgba(15,107,93,0.2)";
-  if (score >= 60) return "rgba(15,107,93,0.1)";
-  if (score >= 40) return "rgba(208,129,58,0.18)";
-  return "rgba(179,59,46,0.16)";
 };
 
 const defaultDcaSettings: DcaSettings = {
@@ -114,7 +109,7 @@ const buildAccumulationLabel = (
   return { label: "minimum", multiplier };
 };
 
-export default function OptimalDcaEntryPage() {
+export default function MarketMonitorPage() {
   const [allocations] = useLocalStorageState<Allocation[]>(
     "allocations",
     defaultAllocations
@@ -140,6 +135,12 @@ export default function OptimalDcaEntryPage() {
   const [backtestBaselineFrequency, setBacktestBaselineFrequency] = useState<
     "daily" | "weekly" | "bi-weekly" | "monthly"
   >("monthly");
+  const [marketSummary, setMarketSummary] = useState<MarketRegimeSummary | null>(
+    null
+  );
+  const [marketSummaryWarning, setMarketSummaryWarning] = useState<string | null>(
+    null
+  );
 
   const normalizedSettings = useMemo(
     () => ({
@@ -173,6 +174,40 @@ export default function OptimalDcaEntryPage() {
       return sum + holding.shares * (priceMap[holding.asset_id] ?? 0);
     }, 0);
   }, [holdings, priceMap, detailAsset]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadMarketSummary = async () => {
+      try {
+        const response = await fetch("/api/market-regime/current");
+        if (!response.ok) {
+          if (!cancelled) {
+            setMarketSummary(null);
+            setMarketSummaryWarning(
+              response.status === 404
+                ? "No market metrics found. Run price import."
+                : "Market data unavailable"
+            );
+          }
+          return;
+        }
+        const payload = (await response.json()) as MarketRegimeSummary;
+        if (!cancelled) {
+          setMarketSummary(payload);
+          setMarketSummaryWarning(null);
+        }
+      } catch {
+        if (!cancelled) {
+          setMarketSummary(null);
+          setMarketSummaryWarning("Market data unavailable");
+        }
+      }
+    };
+    void loadMarketSummary();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
 
   useEffect(() => {
@@ -268,7 +303,10 @@ export default function OptimalDcaEntryPage() {
       const engine = runDcaEngine(
         historyState.rows,
         asset.asset_type,
-        normalizedSettings
+        normalizedSettings,
+        marketSummary
+          ? { regime: marketSummary.regime, assetId: asset.asset_id }
+          : undefined
       );
       const latestIndex = engine.history.length - 1;
       const latestPrice = engine.history[latestIndex]?.close;
@@ -289,16 +327,19 @@ export default function OptimalDcaEntryPage() {
         multiplier,
       };
     });
-  }, [trackedAssets, historyMap, normalizedSettings]);
+  }, [trackedAssets, historyMap, normalizedSettings, marketSummary]);
 
   const detailEngine = useMemo(() => {
     if (!detailAsset) return null;
     return runDcaEngine(
       detailAsset.history,
       detailAsset.assetType,
-      normalizedSettings
+      normalizedSettings,
+      marketSummary
+        ? { regime: marketSummary.regime, assetId: detailAsset.assetId }
+        : undefined
     );
-  }, [detailAsset, normalizedSettings]);
+  }, [detailAsset, normalizedSettings, marketSummary]);
 
   const detailChartWidth = 880;
   const detailChartHeight = 360;
@@ -485,8 +526,6 @@ export default function OptimalDcaEntryPage() {
     detailEngine && detailHoverIndex != null
       ? detailEngine.metricsSeries[detailHoverIndex]
       : null;
-  const hoverRegime = hoverMetrics ? scoreToRegime(hoverMetrics.score) : null;
-
   const backtestResult = useMemo(() => {
     if (!showBacktest || !detailEngine) return null;
     const schedule = detailEngine.schedule;
@@ -506,7 +545,10 @@ export default function OptimalDcaEntryPage() {
     const baselineSchedule = runDcaEngine(
       detailEngine.history,
       detailAsset?.assetType ?? "stock",
-      { ...normalizedSettings, frequency: backtestBaselineFrequency }
+      { ...normalizedSettings, frequency: backtestBaselineFrequency },
+      marketSummary
+        ? { regime: marketSummary.regime, assetId: detailAsset?.assetId ?? "" }
+        : undefined
     ).schedule;
     if (!baselineSchedule.length) {
       return { error: "Baseline schedule has no dates in the lookback window." };
@@ -623,6 +665,7 @@ export default function OptimalDcaEntryPage() {
     backtestUseCostBias,
     backtestTotalCapital,
     backtestBaselineFrequency,
+    marketSummary,
   ]);
 
 
@@ -635,29 +678,85 @@ export default function OptimalDcaEntryPage() {
         <div className="absolute inset-0 opacity-60 mix-blend-multiply [background-image:repeating-linear-gradient(135deg,transparent_0,transparent_26px,rgba(214,206,196,0.2)_27px,rgba(214,206,196,0.2)_28px)]" />
       </div>
 
-      <main className="relative mx-auto flex w-full max-w-6xl flex-col gap-8 px-6 py-10 lg:px-10">
+      <main className="relative mx-auto flex w-full max-w-[1200px] flex-col gap-8 px-6 py-10 lg:px-10">
         <header className="flex flex-wrap items-center justify-between gap-6">
           <div className="flex max-w-2xl flex-col gap-3">
             <span className="text-xs uppercase tracking-[0.3em] text-[color:var(--muted)]">
-              Accumulation Optimization
+              Regime + Deployment
             </span>
             <h1 className="font-display text-3xl text-[color:var(--ink)] md:text-4xl">
-              Optimal DCA Entry
+              Market Monitor
             </h1>
             <p className="text-sm text-[color:var(--muted)] md:text-base">
-              Long-term accumulation guidance based on historical price behavior.
-              This is not price prediction, trade timing, or a buy or sell signal.
+              Macro regime awareness + disciplined capital deployment
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <a
+            <Link
               href="/"
               className="rounded-full border border-[color:var(--ink)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--ink)]"
             >
               Home
-            </a>
+            </Link>
           </div>
         </header>
+
+        <section className="grid min-h-[45vh] gap-4 rounded-3xl border border-[color:var(--line)] bg-[color:var(--panel)] p-6 shadow-[var(--shadow)]">
+          <div>
+            <h2 className="font-display text-xl text-[color:var(--ink)]">
+              Market Status
+            </h2>
+            <p className="text-xs text-[color:var(--muted)]">
+              Regime engine output and key macro metrics.
+            </p>
+          </div>
+          <MarketStatusPanel
+            summary={marketSummary}
+            fallbackMessage={marketSummaryWarning ?? "Market data unavailable"}
+          />
+        </section>
+
+        <section className="grid gap-4 rounded-3xl border border-[color:var(--line)] bg-[color:var(--panel)] p-6 shadow-[var(--shadow)]">
+          <div>
+            <h2 className="font-display text-xl text-[color:var(--ink)]">
+              Weekly Market Structure
+            </h2>
+            <p className="text-xs text-[color:var(--muted)]">
+              Daily history aggregated to weekly candlesticks with 50W and 200W moving averages.
+            </p>
+          </div>
+          <div className="grid gap-5">
+            <div className="grid gap-2">
+              <h3 className="text-sm font-semibold uppercase tracking-[0.15em] text-[color:var(--muted)]">
+                SPY Weekly Chart
+              </h3>
+              <WeeklyStockChart ticker="SPY" />
+            </div>
+            <div className="grid gap-2">
+              <h3 className="text-sm font-semibold uppercase tracking-[0.15em] text-[color:var(--muted)]">
+                QQQ Weekly Chart
+              </h3>
+              <WeeklyStockChart ticker="QQQ" />
+            </div>
+            <div className="grid gap-2">
+              <h3 className="text-sm font-semibold uppercase tracking-[0.15em] text-[color:var(--muted)]">
+                IWM Weekly Chart
+              </h3>
+              <WeeklyStockChart ticker="IWM" />
+            </div>
+          </div>
+        </section>
+
+        <div className="h-px w-full bg-[color:var(--line)]" />
+
+        <section className="grid gap-2">
+          <h2 className="font-display text-xl text-[color:var(--ink)]">
+            DCA Execution
+          </h2>
+          <p className="text-xs text-[color:var(--muted)]">
+            Existing DCA controls and results.
+          </p>
+        </section>
 
         <section className="grid gap-4 rounded-3xl border border-[color:var(--line)] bg-[color:var(--panel)] p-6 shadow-[var(--shadow)]">
           <div className="flex flex-wrap items-center justify-between gap-4">

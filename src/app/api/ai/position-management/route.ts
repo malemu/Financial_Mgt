@@ -10,6 +10,7 @@ import {
 } from "@/lib/types";
 import { computeWeights } from "@/lib/finance";
 import { getDb } from "@/lib/db";
+import { getCurrentMarketRegimeSummary } from "@/lib/server/marketRegimeEngine";
 
 export const runtime = "nodejs";
 
@@ -353,6 +354,7 @@ export async function POST(request: Request) {
       .all() as DbPriceRow[];
 
     const weights = computeWeights(payload.holdings, payload.priceMap);
+    const marketRegimeSummary = getCurrentMarketRegimeSummary();
     const eligible = payload.allocations.filter(
       (allocation) => allocation.conviction_tier >= payload.convictionThreshold
     );
@@ -379,6 +381,7 @@ export async function POST(request: Request) {
         fundamentals_summary: allocation.fundamentals_summary,
         thesis_valid: allocation.thesis_valid,
         marketRegime: payload.marketRegime,
+        marketRegimeSummary,
       };
     });
 
@@ -470,6 +473,7 @@ export async function POST(request: Request) {
                 "Generate calm, long-term rationale and 1-3 conservative triggers.",
               ],
             },
+            market_regime_summary: marketRegimeSummary,
             positions: inputs,
           }),
         },

@@ -8,6 +8,7 @@ import {
   getCompanyNews,
   getBasicFundamentals,
 } from "@/lib/market-data";
+import { getCurrentMarketRegimeSummary } from "@/lib/server/marketRegimeEngine";
 
 export const runtime = "nodejs";
 
@@ -371,6 +372,7 @@ export async function POST(request: Request) {
     },
     contribution_plan: payload.contributionPlan ?? null,
     market_regime: payload.marketRegime ?? null,
+    market_regime_summary: getCurrentMarketRegimeSummary(),
     time_horizon_years: timeHorizonYears,
     risk_constraints: {
       no_day_trading: payload.riskConstraints?.noDayTrading ?? null,

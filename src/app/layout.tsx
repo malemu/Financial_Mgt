@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Fraunces, Space_Grotesk } from "next/font/google";
+import Link from "next/link";
 import "./globals.css";
 import ThemeToggle from "@/components/ThemeToggle";
 
@@ -48,42 +49,42 @@ export default function RootLayout({
             </div>
             <div className="flex flex-1 items-center justify-center">
               <div className="flex flex-nowrap items-center gap-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/80">
-                <a
+                <Link
                   href="/"
                   className="border-b-2 border-transparent px-1 pb-1 text-white transition hover:border-white/90"
                 >
                   Home
-                </a>
-                <a
+                </Link>
+                <Link
                   href="/portfolio"
                   className="border-b-2 border-transparent px-1 pb-1 text-white transition hover:border-white/90"
                 >
                   Portfolio
-                </a>
-                <a
+                </Link>
+                <Link
                   href="/buy-rent"
                   className="border-b-2 border-transparent px-1 pb-1 text-white transition hover:border-white/90"
                 >
                   Buy/Rent
-                </a>
-                <a
+                </Link>
+                <Link
                   href="/kids-invest"
                   className="border-b-2 border-transparent px-1 pb-1 text-white transition hover:border-white/90"
                 >
                   Kids Simulator
-                </a>
-                <a
-                  href="/optimal-dca-entry"
+                </Link>
+                <Link
+                  href="/market-monitor"
                   className="border-b-2 border-transparent px-1 pb-1 text-white transition hover:border-white/90"
                 >
-                  Optimal DCA Entry
-                </a>
-                <a
+                  Market Monitor
+                </Link>
+                <Link
                   href="/housing-intelligence"
                   className="border-b-2 border-transparent px-1 pb-1 text-white transition hover:border-white/90"
                 >
                   Housing Intelligence
-                </a>
+                </Link>
               </div>
             </div>
             <ThemeToggle />

@@ -288,12 +288,13 @@ export default function PortfolioPage() {
                             value={item.asset_type}
                             onChange={(event) =>
                               updateAllocation(item.id, {
-                                asset_type: event.target.value as "stock" | "crypto",
+                                asset_type: event.target.value as Allocation["asset_type"],
                               })
                             }
                           >
                             <option value="stock">stock</option>
                             <option value="crypto">crypto</option>
+                            <option value="index">index</option>
                           </select>
                         </label>
                         <label className="grid gap-1">

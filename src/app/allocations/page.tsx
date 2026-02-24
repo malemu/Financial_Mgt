@@ -205,6 +205,7 @@ export default function AllocationsPage() {
                       >
                         <option value="stock">stock</option>
                         <option value="crypto">crypto</option>
+                        <option value="index">index</option>
                         <option value="cash">cash</option>
                       </select>
                     </label>

@@ -31,6 +31,7 @@ import { useLocalStorageState } from "@/lib/use-local-storage";
 import {
   AiActionHistory,
   GoalConfig,
+  MarketRegimeSummary,
   MarketRegime,
   PositionAction,
   TriggerRule,
@@ -163,6 +164,8 @@ export default function Home() {
   const [marketRegimeError, setMarketRegimeError] = useState<string | null>(
     null
   );
+  const [marketCycleSummary, setMarketCycleSummary] =
+    useState<MarketRegimeSummary | null>(null);
   const [convictionThreshold, setConvictionThreshold] = useState(4);
   const [dismissedDrift, setDismissedDrift] = useLocalStorageState<string[]>(
     "driftDismissed",
@@ -428,6 +431,7 @@ export default function Home() {
       setPriceUpdateResult(payload);
       await refreshPriceStatus();
       await refreshMarketRegime();
+      await refreshMarketCycleSummary();
       setPriceUpdateStatus("idle");
     } catch (error) {
       setPriceUpdateStatus("error");
@@ -439,6 +443,7 @@ export default function Home() {
 
   useEffect(() => {
     void refreshPriceStatus();
+    void refreshMarketCycleSummary();
   }, []);
 
   useEffect(() => {
@@ -450,6 +455,17 @@ export default function Home() {
     if (!response.ok) return;
     const payload = await response.json();
     setPriceStatus(payload.tickers ?? []);
+  };
+
+  const refreshMarketCycleSummary = async () => {
+    try {
+      const response = await fetch("/api/market-regime/current");
+      if (!response.ok) return;
+      const payload = (await response.json()) as MarketRegimeSummary;
+      setMarketCycleSummary(payload);
+    } catch {
+      // Ignore non-critical market cycle fetch failures.
+    }
   };
 
   const refreshMarketRegime = async () => {
@@ -533,7 +549,14 @@ export default function Home() {
       });
       if (!response.ok) {
         const errorPayload = await response.json().catch(() => null);
-        throw new Error(errorPayload?.error ?? "Upload failed.");
+        const detail =
+          typeof errorPayload?.detail === "string" ? ` ${errorPayload.detail}` : "";
+        const hint =
+          typeof errorPayload?.detail === "string" &&
+          errorPayload.detail.includes("Insufficient market history")
+            ? " Run Update Price History to fetch SPY/QQQ/IWM/VIX with enough history."
+            : "";
+        throw new Error((errorPayload?.error ?? "Upload failed.") + detail + hint);
       }
       const payload = await response.json();
       setUploadResult(payload);
@@ -600,7 +623,14 @@ export default function Home() {
             const payload = (await response.json()) as { rows?: any[] };
             const rows = payload.rows ?? [];
             if (!rows.length) return;
-            const engine = runDcaEngine(rows, assetType, dcaSettings);
+            const engine = runDcaEngine(
+              rows,
+              assetType,
+              dcaSettings,
+              marketCycleSummary
+                ? { regime: marketCycleSummary.regime, assetId: action.asset_id }
+                : undefined
+            );
             const latest = engine.metricsSeries[engine.metricsSeries.length - 1];
             if (!latest) return;
             const execution =
@@ -673,7 +703,7 @@ export default function Home() {
     return () => {
       cancelled = true;
     };
-  }, [latestAiEntries, allocations, dcaSettings]);
+  }, [latestAiEntries, allocations, dcaSettings, marketCycleSummary]);
   const allocationChartData = useMemo(() => {
     const total = holdings.reduce(
       (sum, holding) => sum + holding.shares * (priceMap[holding.asset_id] ?? 0),

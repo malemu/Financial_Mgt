@@ -1,11 +1,26 @@
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
+import { MARKET_INDEX_TICKERS } from "@/lib/market-regime-constants";
+import { updateMarketMetrics } from "@/lib/server/marketRegimeEngine";
 
 export const runtime = "nodejs";
 
 type RequestPayload = {
   tickers?: string[];
   allocations?: { asset_id: string; asset_type: string }[];
+};
+
+type HistoryRow = {
+  ticker: string;
+  date: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+  data_source: string;
+  fetched_at: string;
+  sort_order: number;
 };
 
 const mostRecentTradingDay = (now: Date) => {
@@ -15,6 +30,57 @@ const mostRecentTradingDay = (now: Date) => {
   }
   return date.toISOString().slice(0, 10);
 };
+
+const fetchFredVixSeries = async (
+  ticker: string,
+  latestDate: string | null,
+  fetchedAt: string
+): Promise<{ rows: HistoryRow[]; error?: string }> => {
+  const url = "https://fred.stlouisfed.org/graph/fredgraph.csv?id=VIXCLS";
+  const response = await fetch(url);
+  if (!response.ok) {
+    return { rows: [], error: `FRED fetch failed (${response.status}).` };
+  }
+
+  const text = await response.text();
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  if (lines.length < 2) {
+    return { rows: [], error: "FRED returned empty VIX series." };
+  }
+
+  const rows: HistoryRow[] = [];
+  for (let i = 1; i < lines.length; i += 1) {
+    const [dateRaw, valueRaw] = lines[i].split(",");
+    const date = (dateRaw ?? "").trim();
+    const valueText = (valueRaw ?? "").trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
+    if (latestDate && date <= latestDate) continue;
+    if (!valueText || valueText === ".") continue;
+    const close = Number(valueText);
+    if (!Number.isFinite(close)) continue;
+
+    rows.push({
+      ticker,
+      date,
+      open: close,
+      high: close,
+      low: close,
+      close,
+      volume: 0,
+      data_source: "FRED (VIXCLS)",
+      fetched_at: fetchedAt,
+      sort_order: Number(date.replace(/-/g, "")),
+    });
+  }
+
+  return { rows };
+};
+
+const REGIME_REQUIRED_TICKERS = ["SPY", "QQQ", "VIX"] as const;
+const BACKFILL_TICKERS = new Set(["SPY", "QQQ", "IWM"]);
 
 export async function POST(request: Request) {
   const payload = (await request.json()) as RequestPayload;
@@ -29,7 +95,7 @@ export async function POST(request: Request) {
     allocations.forEach((allocation) => {
       const ticker = allocation.asset_id?.toUpperCase();
       if (!ticker) return;
-      if (allocation.asset_type === "stock") {
+      if (allocation.asset_type === "stock" || allocation.asset_type === "index") {
         stockTickers.add(ticker);
       } else if (allocation.asset_type === "crypto") {
         if (ticker === "BTC") {
@@ -54,6 +120,8 @@ export async function POST(request: Request) {
       }
     });
   }
+
+  MARKET_INDEX_TICKERS.forEach((ticker) => stockTickers.add(ticker));
 
   const tickers = [...stockTickers, ...cryptoTickers];
   if (!tickers.length) {
@@ -85,6 +153,10 @@ export async function POST(request: Request) {
 
   for (const ticker of tickers) {
     const isCrypto = cryptoTickers.has(ticker);
+    const existingCount = db
+      .prepare("select count(*) as c from price_history where ticker = ?")
+      .get(ticker) as { c: number };
+    const needsBackfill = BACKFILL_TICKERS.has(ticker) && (existingCount?.c ?? 0) < 200;
     const latestRow = db
       .prepare(
         "select date, close from price_history where ticker = ? order by date desc limit 1"
@@ -92,18 +164,7 @@ export async function POST(request: Request) {
       .get(ticker) as { date: string | null; close: number | null };
     const latestDate = latestRow?.date ?? null;
 
-    let rows: {
-      ticker: string;
-      date: string;
-      open: number;
-      high: number;
-      low: number;
-      close: number;
-      volume: number;
-      data_source: string;
-      fetched_at: string;
-      sort_order: number;
-    }[] = [];
+    let rows: HistoryRow[] = [];
 
     if (isCrypto) {
       const productId = ticker === "BTC" ? "BTC-USD" : `${ticker}-USD`;
@@ -157,11 +218,18 @@ export async function POST(request: Request) {
           };
         })
         .filter(Boolean) as typeof rows;
+    } else if (ticker === "VIX") {
+      const vix = await fetchFredVixSeries(ticker, latestDate, fetchedAt);
+      if (vix.error) {
+        results[ticker] = { error: vix.error };
+        continue;
+      }
+      rows = vix.rows;
     } else {
       const url = new URL("https://www.alphavantage.co/query");
       url.searchParams.set("function", "TIME_SERIES_DAILY");
       url.searchParams.set("symbol", ticker);
-      url.searchParams.set("outputsize", "compact");
+      url.searchParams.set("outputsize", needsBackfill ? "full" : "compact");
       url.searchParams.set("apikey", process.env.ALPHA_VANTAGE_API_KEY);
 
       const response = await fetch(url.toString());
@@ -206,7 +274,7 @@ export async function POST(request: Request) {
           ) {
             return null;
           }
-          if (latestDate && date <= latestDate) {
+          if (!needsBackfill && latestDate && date <= latestDate) {
             return null;
           }
           const sort_order = Number(date.replace(/-/g, ""));
@@ -249,6 +317,8 @@ export async function POST(request: Request) {
       fetched_at: fetchedAt,
       data_source: isCrypto
         ? "Coinbase Exchange (Daily)"
+        : ticker === "VIX"
+        ? "FRED (VIXCLS)"
         : "Alpha Vantage (Daily)",
       is_stale: latestEffective.date
         ? latestEffective.date < latestTradingDay
@@ -259,12 +329,60 @@ export async function POST(request: Request) {
     await new Promise((resolve) => setTimeout(resolve, 1100));
   }
 
+  const regimeCounts = REGIME_REQUIRED_TICKERS.reduce((acc, ticker) => {
+    const row = db
+      .prepare("select count(*) as c from price_history where ticker = ?")
+      .get(ticker) as { c: number };
+    acc[ticker] = row?.c ?? 0;
+    return acc;
+  }, {} as Record<string, number>);
+  const insufficient = Object.entries(regimeCounts).filter(([, count]) => count < 200);
+  if (insufficient.length) {
+    return NextResponse.json(
+      {
+        error: "Price import completed, but market metrics requirements are not met.",
+        detail: `Insufficient market history to compute regime. ${insufficient
+          .map(([ticker, count]) => `${ticker}=${count}`)
+          .join(", ")}. Need at least 200 rows each.`,
+        fetched_at: fetchedAt,
+        latest_trading_day: latestTradingDay,
+        inserted: totalInserted,
+        results,
+        skipped,
+      },
+      { status: 500 }
+    );
+  }
+
+  let marketMetrics = null;
+  try {
+    marketMetrics = updateMarketMetrics(new Date());
+  } catch (error) {
+    const detail =
+      error instanceof Error
+        ? error.message
+        : "Failed to rebuild market metrics after price import.";
+    return NextResponse.json(
+      {
+        error: "Price import completed, but market metrics rebuild failed.",
+        detail,
+        fetched_at: fetchedAt,
+        latest_trading_day: latestTradingDay,
+        inserted: totalInserted,
+        results,
+        skipped,
+      },
+      { status: 500 }
+    );
+  }
+
   return NextResponse.json({
     fetched_at: fetchedAt,
     latest_trading_day: latestTradingDay,
     inserted: totalInserted,
     results,
     skipped,
+    market_metrics: marketMetrics,
     warning: totalInserted
       ? undefined
       : "No new price history rows were inserted. Existing latest prices are shown.",
