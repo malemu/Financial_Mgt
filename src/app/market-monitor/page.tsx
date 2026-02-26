@@ -701,7 +701,7 @@ export default function MarketMonitorPage() {
           </div>
         </header>
 
-        <section className="grid min-h-[45vh] gap-4 rounded-3xl border border-[color:var(--line)] bg-[color:var(--panel)] p-6 shadow-[var(--shadow)]">
+        <section className="grid gap-3 rounded-3xl border border-[color:var(--line)] bg-[color:var(--panel)] p-5 shadow-[var(--shadow)]">
           <div>
             <h2 className="font-display text-xl text-[color:var(--ink)]">
               Market Status
