@@ -1,9 +1,9 @@
 [
   {
     "asset_id": "NVDA",
-    "shares": 20,
-    "entry_price": 174,
-    "cost_basis": 174,
+    "shares": 37,
+    "entry_price": 184,
+    "cost_basis": 184,
     "sort_order": 0
   },
   {
@@ -15,7 +15,7 @@
   },
   {
     "asset_id": "CASH",
-    "shares": 189000,
+    "shares": 182000,
     "entry_price": 1,
     "cost_basis": 1,
     "sort_order": 2
@@ -33,5 +33,12 @@
     "entry_price": 232,
     "cost_basis": 232,
     "sort_order": 4
+  },
+  {
+    "asset_id": "AMZN",
+    "shares": 10,
+    "entry_price": 208,
+    "cost_basis": 208,
+    "sort_order": 5
   }
 ]

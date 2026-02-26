@@ -20,8 +20,8 @@
     "id": "alloc-btc",
     "asset_id": "BTC",
     "asset_type": "crypto",
-    "target_weight": 15,
-    "max_weight": 20,
+    "target_weight": 10,
+    "max_weight": 15,
     "conviction_tier": 5,
     "expected_cagr": 35,
     "role": "optionality",
@@ -83,5 +83,22 @@
     "price_action": "Add price action context.",
     "thesis_valid": 1,
     "sort_order": 4
+  },
+  {
+    "id": "alloc-1772123079400",
+    "asset_id": "AMZN",
+    "asset_type": "stock",
+    "target_weight": 5,
+    "max_weight": 5,
+    "conviction_tier": 3,
+    "expected_cagr": 15,
+    "role": "growth",
+    "thesis_summary": "Define thesis.",
+    "kill_criteria": "Define kill criteria.",
+    "thesis_last_review": "2026-02-26",
+    "fundamentals_summary": "Add fundamentals summary.",
+    "price_action": "Add price action context.",
+    "thesis_valid": 1,
+    "sort_order": 5
   }
 ]
