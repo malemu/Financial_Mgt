@@ -145,7 +145,7 @@ export function simulateBuyNow(inputs: ScenarioInputs): ScenarioResult {
   let investments = Math.max(0, inputs.buyNow.investments.lumpSum);
   let homeValue = buy.purchasePrice;
   let mortgageBalance = buy.purchasePrice - downPayment;
-  let monthlyPayment = mortgagePayment(
+  const monthlyPayment = mortgagePayment(
     mortgageBalance,
     buy.mortgageRateAnnual,
     buy.termYears

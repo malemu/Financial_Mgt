@@ -18,6 +18,11 @@ import {
 } from "@/lib/simulation/netWorthSimulation";
 import { validatePortfolio } from "@/lib/validation";
 import AllocationPieChart from "@/components/AllocationPieChart";
+import { useGoalState } from "@/hooks/useGoalState";
+import { useNetWorthHistoryState } from "@/hooks/useNetWorthHistoryState";
+import { useAllocationsState } from "@/hooks/useAllocationsState";
+import { useHoldingsState } from "@/hooks/useHoldingsState";
+import { usePriceMapState } from "@/hooks/usePriceMapState";
 import {
   defaultAllocations,
   defaultGoal,
@@ -30,7 +35,6 @@ import {
 import { useLocalStorageState } from "@/lib/use-local-storage";
 import {
   AiActionHistory,
-  GoalConfig,
   MarketRegimeSummary,
   MarketRegime,
   PositionAction,
@@ -127,14 +131,14 @@ const getChartPoint = (
 };
 
 export default function Home() {
-  const [goal, setGoal] = useLocalStorageState<GoalConfig>("goal", defaultGoal);
-  const [allocations] = useLocalStorageState("allocations", defaultAllocations);
+  const { goal, setGoal } = useGoalState(defaultGoal);
+  const { allocations } = useAllocationsState(defaultAllocations);
+  const { holdings } = useHoldingsState(defaultHoldings);
+  const { priceMap } = usePriceMapState(defaultPriceMap);
   const [dcaSettings, setDcaSettings] = useLocalStorageState<DcaSettings>(
     "dca-settings",
     defaultDcaSettings
   );
-  const [holdings] = useLocalStorageState("holdings", defaultHoldings);
-  const [priceMap] = useLocalStorageState("prices", defaultPriceMap);
   const [triggers, setTriggers] = useLocalStorageState<TriggerRule[]>(
     "triggers",
     defaultTriggers
@@ -143,10 +147,11 @@ export default function Home() {
     "aiActionHistory",
     defaultAiActionHistory
   );
-  const [netWorthHistory, setNetWorthHistory] = useLocalStorageState(
-    "netWorthHistory",
-    defaultNetWorthHistory
-  );
+  const {
+    netWorthHistory,
+    appendPoint: persistNetWorthPoint,
+    deletePoint: deleteNetWorthPoint,
+  } = useNetWorthHistoryState(defaultNetWorthHistory);
   const [marketRegime, setMarketRegime] = useState<MarketRegime>("risk-on");
   const [autoMarketRegime, setAutoMarketRegime] = useLocalStorageState(
     "autoMarketRegime",
@@ -177,6 +182,12 @@ export default function Home() {
     target_net_worth: goal.target_net_worth.toString(),
     target_year: goal.target_year.toString(),
   });
+  useEffect(() => {
+    setDraftGoal({
+      target_net_worth: goal.target_net_worth.toString(),
+      target_year: goal.target_year.toString(),
+    });
+  }, [goal.target_net_worth, goal.target_year]);
   const [draftContribution, setDraftContribution] = useState(
     dcaSettings.baseContribution.toString()
   );
@@ -1089,14 +1100,11 @@ export default function Home() {
 
   const addNetWorthSnapshot = () => {
     const nextDate = new Date().toISOString().slice(0, 10);
-    setNetWorthHistory((prev) => [
-      ...prev,
-      { date: nextDate, value: totalNetWorth },
-    ]);
+    void persistNetWorthPoint({ date: nextDate, value: totalNetWorth });
   };
 
   const removeLastSnapshot = () => {
-    setNetWorthHistory((prev) => prev.slice(0, -1));
+    void deleteNetWorthPoint();
   };
 
   const dismissDriftAlert = (assetId: string) => {

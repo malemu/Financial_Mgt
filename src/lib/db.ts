@@ -1,11 +1,28 @@
 import fs from "node:fs";
 import path from "node:path";
 import Database from "better-sqlite3";
+import type {
+  AiActionHistory,
+  Allocation,
+  Holding,
+  NetWorthPoint,
+  TriggerRule,
+} from "./types";
 
 const DB_DIR = path.resolve(process.cwd(), "data");
 const DB_PATH = path.join(DB_DIR, "financial_mgt.db");
 
 let db: Database.Database | undefined;
+
+type TableInfoRow = { name: string };
+type LegacyPriceHistoryRow = {
+  asset_id: string;
+  date: string;
+  close: number;
+  high: number;
+  low: number;
+};
+type BuyRentInputs = Record<string, unknown>;
 
 const initDb = () => {
   if (!fs.existsSync(DB_DIR)) {
@@ -51,12 +68,14 @@ const initDb = () => {
       cost_basis real not null,
       sort_order integer not null
     );
+    create unique index if not exists idx_holdings_asset on holdings (asset_id);
 
     create table if not exists prices (
       asset_id text not null,
       price real not null,
       sort_order integer not null
     );
+    create unique index if not exists idx_prices_asset on prices (asset_id);
 
     create table if not exists price_history (
       ticker text not null,
@@ -84,6 +103,7 @@ const initDb = () => {
       value real not null,
       sort_order integer not null
     );
+    create unique index if not exists idx_net_worth_history_date on net_worth_history (date);
 
     create table if not exists ai_action_history (
       id integer primary key autoincrement,
@@ -177,7 +197,7 @@ const ensurePriceHistorySchema = (instance: Database.Database) => {
   const columns = instance
     .prepare("pragma table_info('price_history')")
     .all()
-    .map((col: any) => col.name);
+    .map((col: TableInfoRow) => col.name);
 
   const hasTicker = columns.includes("ticker");
   const hasAssetId = columns.includes("asset_id");
@@ -242,7 +262,7 @@ const ensureLocalMarketActivitySchema = (instance: Database.Database) => {
   const columns = instance
     .prepare("pragma table_info('local_market_activity')")
     .all()
-    .map((col: any) => col.name);
+    .map((col: TableInfoRow) => col.name);
   const required: Record<string, string> = {
     market_id: "text",
     date: "text",
@@ -276,7 +296,7 @@ const ensureAssetsSchema = (instance: Database.Database) => {
   const columns = instance
     .prepare("pragma table_info('assets')")
     .all()
-    .map((col: any) => col.name);
+    .map((col: TableInfoRow) => col.name);
   const required: Record<string, string> = {
     ticker: "text",
     name: "text",
@@ -302,7 +322,7 @@ const ensureMarketMetricsSchema = (instance: Database.Database) => {
   const columns = instance
     .prepare("pragma table_info('market_metrics')")
     .all()
-    .map((col: any) => col.name);
+    .map((col: TableInfoRow) => col.name);
 
   const required: Record<string, string> = {
     id: "text",
@@ -364,7 +384,7 @@ const migrateFromKvStore = (instance: Database.Database) => {
       .run(goal.target_net_worth ?? 0, goal.target_year ?? 0);
   }
 
-  const allocations = readJson<any[]>("allocations");
+  const allocations = readJson<Allocation[]>("allocations");
   if (allocations?.length) {
     const insert = instance.prepare(
       `insert into allocations (
@@ -377,7 +397,7 @@ const migrateFromKvStore = (instance: Database.Database) => {
         @fundamentals_summary, @price_action, @thesis_valid, @sort_order
       )`
     );
-    const tx = instance.transaction((items: any[]) => {
+    const tx = instance.transaction((items: Allocation[]) => {
       instance.prepare("delete from allocations").run();
       items.forEach((item, index) => {
         insert.run({
@@ -390,13 +410,13 @@ const migrateFromKvStore = (instance: Database.Database) => {
     tx(allocations);
   }
 
-  const holdings = readJson<any[]>("holdings");
+  const holdings = readJson<Holding[]>("holdings");
   if (holdings?.length) {
     const insert = instance.prepare(
       `insert into holdings (asset_id, shares, entry_price, cost_basis, sort_order)
        values (@asset_id, @shares, @entry_price, @cost_basis, @sort_order)`
     );
-    const tx = instance.transaction((items: any[]) => {
+    const tx = instance.transaction((items: Holding[]) => {
       instance.prepare("delete from holdings").run();
       items.forEach((item, index) => insert.run({ ...item, sort_order: index }));
     });
@@ -417,13 +437,13 @@ const migrateFromKvStore = (instance: Database.Database) => {
     tx(Object.entries(prices));
   }
 
-  const priceHistory = readJson<any[]>("priceHistory");
+  const priceHistory = readJson<LegacyPriceHistoryRow[]>("priceHistory");
   if (priceHistory?.length) {
     const insert = instance.prepare(
       `insert into price_history (asset_id, date, close, high, low, sort_order)
        values (@asset_id, @date, @close, @high, @low, @sort_order)`
     );
-    const tx = instance.transaction((items: any[]) => {
+    const tx = instance.transaction((items: LegacyPriceHistoryRow[]) => {
       instance.prepare("delete from price_history").run();
       items.forEach((item, index) => {
         insert.run({ ...item, sort_order: index });
@@ -432,13 +452,13 @@ const migrateFromKvStore = (instance: Database.Database) => {
     tx(priceHistory);
   }
 
-  const triggers = readJson<any[]>("triggers");
+  const triggers = readJson<TriggerRule[]>("triggers");
   if (triggers?.length) {
     const insert = instance.prepare(
       `insert into triggers (id, asset_id, rule, approved, sort_order)
        values (@id, @asset_id, @rule, @approved, @sort_order)`
     );
-    const tx = instance.transaction((items: any[]) => {
+    const tx = instance.transaction((items: TriggerRule[]) => {
       instance.prepare("delete from triggers").run();
       items.forEach((item, index) => {
         insert.run({
@@ -451,20 +471,20 @@ const migrateFromKvStore = (instance: Database.Database) => {
     tx(triggers);
   }
 
-  const netWorthHistory = readJson<any[]>("netWorthHistory");
+  const netWorthHistory = readJson<NetWorthPoint[]>("netWorthHistory");
   if (netWorthHistory?.length) {
     const insert = instance.prepare(
       `insert into net_worth_history (date, value, sort_order)
        values (@date, @value, @sort_order)`
     );
-    const tx = instance.transaction((items: any[]) => {
+    const tx = instance.transaction((items: NetWorthPoint[]) => {
       instance.prepare("delete from net_worth_history").run();
       items.forEach((item, index) => insert.run({ ...item, sort_order: index }));
     });
     tx(netWorthHistory);
   }
 
-  const aiHistory = readJson<any[]>("aiActionHistory");
+  const aiHistory = readJson<AiActionHistory[]>("aiActionHistory");
   if (aiHistory?.length) {
     const insert = instance.prepare(
       `insert into ai_action_history (
@@ -475,7 +495,7 @@ const migrateFromKvStore = (instance: Database.Database) => {
         @rationale, @proactive_triggers, @overridden, @override_reason, @sort_order
       )`
     );
-    const tx = instance.transaction((items: any[]) => {
+    const tx = instance.transaction((items: AiActionHistory[]) => {
       instance.prepare("delete from ai_action_history").run();
       items.forEach((item, index) => {
         insert.run({
@@ -502,7 +522,7 @@ const migrateFromKvStore = (instance: Database.Database) => {
     tx(dismissed);
   }
 
-  const buyRent = readJson<any>("rent-buy-invest-inputs-v3");
+  const buyRent = readJson<BuyRentInputs>("rent-buy-invest-inputs-v3");
   if (buyRent) {
     instance
       .prepare(

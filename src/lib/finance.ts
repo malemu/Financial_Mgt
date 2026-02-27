@@ -292,8 +292,8 @@ export const buildAiActions = (
 
       let action = aiOutput.proposed_action;
       let size_range = aiOutput.size_range;
-      let rationale = [...aiOutput.rationale];
-      let confidence = aiOutput.confidence;
+      const rationale = [...aiOutput.rationale];
+      const confidence = aiOutput.confidence;
       let blocked = false;
       let overridden = false;
       let override_reason: string | undefined;

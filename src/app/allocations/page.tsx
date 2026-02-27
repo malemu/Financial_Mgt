@@ -1,60 +1,30 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Allocation } from "@/lib/types";
 import { defaultAllocations, defaultHoldings, defaultPriceMap } from "@/lib/mock-data";
-import { useLocalStorageState } from "@/lib/use-local-storage";
 import { computeDrift } from "@/lib/finance";
+import { useAllocationsState } from "@/hooks/useAllocationsState";
+import { useHoldingsState } from "@/hooks/useHoldingsState";
+import { usePriceMapState } from "@/hooks/usePriceMapState";
 
 const formatPercent = (value: number) => `${value.toFixed(1)}%`;
 
 export default function AllocationsPage() {
-  const [allocations, setAllocations] = useLocalStorageState<Allocation[]>(
-    "allocations",
-    defaultAllocations
-  );
-  const [holdings] = useLocalStorageState("holdings", defaultHoldings);
-  const [priceMap] = useLocalStorageState("prices", defaultPriceMap);
+  const {
+    allocations,
+    updateAllocation,
+    addAllocation,
+    removeAllocation,
+  } = useAllocationsState(defaultAllocations);
+  const { holdings } = useHoldingsState(defaultHoldings);
+  const { priceMap } = usePriceMapState(defaultPriceMap);
   const drift = useMemo(
     () => computeDrift(allocations, holdings, priceMap),
     [allocations, holdings, priceMap]
   );
   const [view, setView] = useState<"cards" | "drift">("cards");
-
-  const updateAllocation = (id: string, patch: Partial<Allocation>) => {
-    setAllocations((prev) =>
-      prev.map((allocation) =>
-        allocation.id === id ? { ...allocation, ...patch } : allocation
-      )
-    );
-  };
-
-  const addAllocation = () => {
-    const id = `alloc-${Date.now()}`;
-    setAllocations((prev) => [
-      ...prev,
-      {
-        id,
-        asset_id: "NEW",
-        asset_type: "stock",
-        target_weight: 5,
-        max_weight: 10,
-        conviction_tier: 3,
-        expected_cagr: 15,
-        role: "core growth",
-        thesis_summary: "Define thesis.",
-        kill_criteria: "Define kill criteria.",
-        thesis_last_review: new Date().toISOString().slice(0, 10),
-        fundamentals_summary: "Add fundamentals summary.",
-        price_action: "Add price action context.",
-        thesis_valid: true,
-      },
-    ]);
-  };
-
-  const removeAllocation = (id: string) => {
-    setAllocations((prev) => prev.filter((allocation) => allocation.id !== id));
-  };
 
   return (
     <div className="relative min-h-screen overflow-hidden">
@@ -80,12 +50,12 @@ export default function AllocationsPage() {
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <a
+            <Link
               href="/"
               className="rounded-full border border-[color:var(--ink)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--ink)]"
             >
               Home
-            </a>
+            </Link>
             <button
               onClick={addAllocation}
               className="rounded-full bg-[color:var(--accent)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-white"

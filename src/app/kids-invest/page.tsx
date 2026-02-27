@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import {
   LineChart,
@@ -188,12 +189,12 @@ export default function KidsInvestPage() {
               compounding, and time. Assumes a steady CAGR with no market timing.
             </p>
           </div>
-          <a
+          <Link
             href="/"
             className="rounded-full border border-[color:var(--ink)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--ink)]"
           >
             Home
-          </a>
+          </Link>
         </header>
 
         <section className="grid gap-6 lg:grid-cols-[0.85fr_1.6fr]">

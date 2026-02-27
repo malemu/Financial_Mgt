@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 
 const money = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -50,12 +50,7 @@ export default function CurrencyInput({
   const [display, setDisplay] = useState(formatCurrency(value));
   const [focused, setFocused] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
-
-  useEffect(() => {
-    if (!focused) {
-      setDisplay(formatCurrency(value));
-    }
-  }, [value, focused]);
+  const shownValue = focused ? display : formatCurrency(value);
 
   const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const raw = event.target.value;
@@ -78,7 +73,13 @@ export default function CurrencyInput({
 
   const handleBlur = () => {
     setFocused(false);
-    setDisplay(formatCurrency(parseCurrency(display)));
+    const normalized = formatCurrency(parseCurrency(display));
+    setDisplay(normalized);
+  };
+
+  const handleFocus = () => {
+    setFocused(true);
+    setDisplay(formatCurrency(value));
   };
 
   return (
@@ -87,9 +88,9 @@ export default function CurrencyInput({
       type="text"
       inputMode="decimal"
       aria-label={ariaLabel}
-      value={display}
+      value={shownValue}
       onChange={handleChange}
-      onFocus={() => setFocused(true)}
+      onFocus={handleFocus}
       onBlur={handleBlur}
     />
   );

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Allocation, Holding } from "@/lib/types";
 import {
@@ -7,7 +8,9 @@ import {
   defaultHoldings,
   defaultPriceMap,
 } from "@/lib/mock-data";
-import { useLocalStorageState } from "@/lib/use-local-storage";
+import { useAllocationsState } from "@/hooks/useAllocationsState";
+import { useHoldingsState } from "@/hooks/useHoldingsState";
+import { usePriceMapState } from "@/hooks/usePriceMapState";
 import {
   computeDrift,
   computePortfolioValue,
@@ -24,15 +27,21 @@ const formatCurrency = (value: number) =>
   });
 
 export default function PortfolioPage() {
-  const [allocations, setAllocations] = useLocalStorageState<Allocation[]>(
-    "allocations",
-    defaultAllocations
+  const {
+    allocations,
+    updateAllocation,
+    addAllocation,
+    removeAllocation,
+  } = useAllocationsState(defaultAllocations);
+  const {
+    holdings,
+    updateHolding: updateHoldingRecord,
+    addHolding: addHoldingRecord,
+    removeHolding: removeHoldingRecord,
+  } = useHoldingsState(defaultHoldings);
+  const { priceMap, setPrice, ensurePrice, renameAsset, removeAsset } = usePriceMapState(
+    defaultPriceMap
   );
-  const [holdings, setHoldings] = useLocalStorageState<Holding[]>(
-    "holdings",
-    defaultHoldings
-  );
-  const [priceMap, setPriceMap] = useLocalStorageState("prices", defaultPriceMap);
   const drift = useMemo(
     () => computeDrift(allocations, holdings, priceMap),
     [allocations, holdings, priceMap]
@@ -47,85 +56,30 @@ export default function PortfolioPage() {
   const [showAllocations, setShowAllocations] = useState(true);
   const [showHoldings, setShowHoldings] = useState(true);
 
-  const updateAllocation = (id: string, patch: Partial<Allocation>) => {
-    setAllocations((prev) =>
-      prev.map((allocation) =>
-        allocation.id === id ? { ...allocation, ...patch } : allocation
-      )
-    );
+  const handleHoldingUpdate = (index: number, patch: Partial<Holding>) => {
+    const target = holdings[index];
+    if (!target) return;
+    const previousId = target.asset_id;
+    const nextPatch = { ...patch };
+    if (nextPatch.asset_id) {
+      nextPatch.asset_id = nextPatch.asset_id.toUpperCase();
+    }
+    void updateHoldingRecord(previousId, nextPatch);
+    if (nextPatch.asset_id && nextPatch.asset_id !== previousId) {
+      void renameAsset(previousId, nextPatch.asset_id);
+    }
   };
 
-  const addAllocation = () => {
-    const id = `alloc-${Date.now()}`;
-    setAllocations((prev) => [
-      ...prev,
-      {
-        id,
-        asset_id: "NEW",
-        asset_type: "stock",
-        target_weight: 5,
-        max_weight: 10,
-        conviction_tier: 3,
-        expected_cagr: 15,
-        role: "core growth",
-        thesis_summary: "Define thesis.",
-        kill_criteria: "Define kill criteria.",
-        thesis_last_review: new Date().toISOString().slice(0, 10),
-        fundamentals_summary: "Add fundamentals summary.",
-        price_action: "Add price action context.",
-        thesis_valid: true,
-      },
-    ]);
+  const handleAddHolding = async () => {
+    const holding = await addHoldingRecord();
+    await ensurePrice(holding.asset_id, 0);
   };
 
-  const removeAllocation = (id: string) => {
-    setAllocations((prev) => prev.filter((allocation) => allocation.id !== id));
-  };
-
-  const updateHolding = (index: number, patch: Partial<Holding>) => {
-    setHoldings((prev) =>
-      prev.map((holding, idx) => {
-        if (idx !== index) return holding;
-        const next = { ...holding, ...patch };
-        if (patch.asset_id && patch.asset_id !== holding.asset_id) {
-          setPriceMap((prices) => {
-            const nextPrices = { ...prices };
-            nextPrices[patch.asset_id ?? holding.asset_id] =
-              prices[holding.asset_id] ?? 0;
-            delete nextPrices[holding.asset_id];
-            return nextPrices;
-          });
-        }
-        return next;
-      })
-    );
-  };
-
-  const addHolding = () => {
-    setHoldings((prev) => [
-      ...prev,
-      {
-        asset_id: "NEW",
-        shares: 0,
-        entry_price: 0,
-        cost_basis: 0,
-      },
-    ]);
-    setPriceMap((prev) => ({ ...prev, NEW: prev.NEW ?? 0 }));
-  };
-
-  const removeHolding = (index: number) => {
-    setHoldings((prev) => {
-      const holding = prev[index];
-      if (holding) {
-        setPriceMap((prices) => {
-          const next = { ...prices };
-          delete next[holding.asset_id];
-          return next;
-        });
-      }
-      return prev.filter((_, idx) => idx !== index);
-    });
+  const handleRemoveHolding = async (index: number) => {
+    const holding = holdings[index];
+    if (!holding) return;
+    await removeHoldingRecord(holding.asset_id);
+    await removeAsset(holding.asset_id);
   };
 
   return (
@@ -152,12 +106,12 @@ export default function PortfolioPage() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            <a
+            <Link
               href="/"
               className="rounded-full border border-[color:var(--ink)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--ink)]"
             >
               Home
-            </a>
+            </Link>
             <button
               onClick={() => setShowAllocations((prev) => !prev)}
               className="rounded-full border border-[color:var(--line)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--ink)]"
@@ -448,7 +402,7 @@ export default function PortfolioPage() {
                           className="w-20 rounded-lg border border-[color:var(--line)] bg-white px-2 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--ink)]"
                           value={holding.asset_id}
                           onChange={(event) =>
-                            updateHolding(index, {
+                            handleHoldingUpdate(index, {
                               asset_id: event.target.value.toUpperCase(),
                             })
                           }
@@ -458,7 +412,7 @@ export default function PortfolioPage() {
                         </span>
                       </div>
                       <button
-                        onClick={() => removeHolding(index)}
+                        onClick={() => handleRemoveHolding(index)}
                         className="rounded-full border border-[color:var(--line)] px-2 py-1 text-[10px] uppercase tracking-[0.2em] text-[color:var(--muted)]"
                       >
                         Remove
@@ -486,7 +440,7 @@ export default function PortfolioPage() {
                           step="any"
                           value={holding.shares}
                           onChange={(event) =>
-                            updateHolding(index, {
+                            handleHoldingUpdate(index, {
                               shares: Number(event.target.value),
                             })
                           }
@@ -501,7 +455,7 @@ export default function PortfolioPage() {
                           step="any"
                           value={holding.entry_price}
                           onChange={(event) =>
-                            updateHolding(index, {
+                            handleHoldingUpdate(index, {
                               entry_price: Number(event.target.value),
                             })
                           }
@@ -516,7 +470,7 @@ export default function PortfolioPage() {
                           step="any"
                           value={holding.cost_basis}
                           onChange={(event) =>
-                            updateHolding(index, {
+                            handleHoldingUpdate(index, {
                               cost_basis: Number(event.target.value),
                             })
                           }
@@ -531,10 +485,7 @@ export default function PortfolioPage() {
                           step="any"
                           value={currentPrice}
                           onChange={(event) =>
-                            setPriceMap((prev) => ({
-                              ...prev,
-                              [holding.asset_id]: Number(event.target.value),
-                            }))
+                            void setPrice(holding.asset_id, Number(event.target.value))
                           }
                         />
                       </label>
@@ -546,7 +497,7 @@ export default function PortfolioPage() {
 
             <div className="flex justify-end">
               <button
-                onClick={addHolding}
+                onClick={handleAddHolding}
                 className="rounded-full bg-[color:var(--accent)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-white"
               >
                 Add Holding
