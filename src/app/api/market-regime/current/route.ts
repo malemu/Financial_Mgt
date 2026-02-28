@@ -5,7 +5,7 @@ export const runtime = "nodejs";
 
 export async function GET() {
   try {
-    const summary = getCurrentMarketRegimeSummary();
+    const summary = await getCurrentMarketRegimeSummary();
     if (!summary) {
       return NextResponse.json(
         { error: "No market metrics found. Run price import." },

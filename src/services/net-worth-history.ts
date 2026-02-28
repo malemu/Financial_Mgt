@@ -1,58 +1,88 @@
-import { getDb } from "@/lib/db";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin-client";
 import type { NetWorthPoint } from "@/lib/types";
 
-const listRows = () => {
-  const db = getDb();
-  return db
-    .prepare(
-      "select date, value from net_worth_history order by sort_order asc, date asc"
-    )
-    .all() as { date: string; value: number }[];
+const getClient = () => createSupabaseAdminClient();
+
+const listRows = async () => {
+  const supabase = getClient();
+  const { data, error } = await supabase
+    .from("net_worth_history")
+    .select("date, value")
+    .order("sort_order", { ascending: true })
+    .order("date", { ascending: true });
+  if (error) {
+    throw new Error(`Failed to load net worth history: ${error.message}`);
+  }
+  return data ?? [];
 };
 
-export const listNetWorthHistory = (): NetWorthPoint[] => {
-  const rows = listRows();
+export const listNetWorthHistory = async (): Promise<NetWorthPoint[]> => {
+  const rows = await listRows();
   return rows.map((row) => ({ date: row.date, value: row.value }));
 };
 
-const nextSortOrder = () => {
-  const db = getDb();
-  const row = db
-    .prepare("select coalesce(max(sort_order), -1) as max_order from net_worth_history")
-    .get() as { max_order: number } | undefined;
-  return (row?.max_order ?? -1) + 1;
+const nextSortOrder = async () => {
+  const supabase = getClient();
+  const { data, error } = await supabase
+    .from("net_worth_history")
+    .select("sort_order")
+    .order("sort_order", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) {
+    throw new Error(`Failed to read net worth sort order: ${error.message}`);
+  }
+  return ((data?.sort_order ?? -1) as number) + 1;
 };
 
-export const upsertNetWorthPoint = (point: NetWorthPoint): NetWorthPoint[] => {
-  const db = getDb();
-  const existing = db
-    .prepare("select sort_order from net_worth_history where date = ?")
-    .get(point.date) as { sort_order: number } | undefined;
-  const sortOrder = existing?.sort_order ?? nextSortOrder();
-  db.prepare(
-    "insert into net_worth_history (date, value, sort_order) values (?, ?, ?) on conflict(date) do update set value = excluded.value, sort_order = excluded.sort_order"
-  ).run(point.date, point.value, sortOrder);
+export const upsertNetWorthPoint = async (point: NetWorthPoint): Promise<NetWorthPoint[]> => {
+  const supabase = getClient();
+  const { data: existing, error: existingError } = await supabase
+    .from("net_worth_history")
+    .select("sort_order")
+    .eq("date", point.date)
+    .maybeSingle();
+  if (existingError) {
+    throw new Error(`Failed to load net worth sort order: ${existingError.message}`);
+  }
+  const sortOrder = existing?.sort_order ?? (await nextSortOrder());
+  const { error } = await supabase.from("net_worth_history").upsert({
+    date: point.date,
+    value: point.value,
+    sort_order: sortOrder,
+  });
+  if (error) {
+    throw new Error(`Failed to upsert net worth point: ${error.message}`);
+  }
   return listNetWorthHistory();
 };
 
-export const deleteNetWorthPoint = (date?: string) => {
-  const db = getDb();
+export const deleteNetWorthPoint = async (date?: string) => {
+  const supabase = getClient();
   let targetDate = date;
   if (!targetDate) {
-    const lastRow = db
-      .prepare(
-        "select date from net_worth_history order by sort_order desc, date desc limit 1"
-      )
-      .get() as { date: string } | undefined;
-    targetDate = lastRow?.date;
+    const { data, error } = await supabase
+      .from("net_worth_history")
+      .select("date")
+      .order("sort_order", { ascending: false })
+      .order("date", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error) {
+      throw new Error(`Failed to fetch latest net worth point: ${error.message}`);
+    }
+    targetDate = data?.date ?? undefined;
   }
 
   if (targetDate) {
-    db.prepare("delete from net_worth_history where date = ?").run(targetDate);
+    const { error } = await supabase.from("net_worth_history").delete().eq("date", targetDate);
+    if (error) {
+      throw new Error(`Failed to delete net worth point: ${error.message}`);
+    }
   }
 
   return {
     removedDate: targetDate ?? null,
-    history: listNetWorthHistory(),
+    history: await listNetWorthHistory(),
   };
 };

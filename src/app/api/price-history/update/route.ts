@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
 import { MARKET_INDEX_TICKERS } from "@/lib/market-regime-constants";
 import { updateMarketMetrics } from "@/lib/server/marketRegimeEngine";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin-client";
 
 export const runtime = "nodejs";
 
@@ -29,6 +29,46 @@ type AlphaDailyRow = {
   "3. low": string;
   "4. close": string;
   "5. volume": string;
+};
+
+const getAdminClient = () => createSupabaseAdminClient();
+
+const countTickerRows = async (ticker: string) => {
+  const supabase = getAdminClient();
+  const { count, error } = await supabase
+    .from("price_history")
+    .select("ticker", { count: "exact", head: true })
+    .eq("ticker", ticker);
+  if (error) {
+    throw new Error(`Failed to count rows for ${ticker}: ${error.message}`);
+  }
+  return count ?? 0;
+};
+
+const getLatestTickerRow = async (ticker: string) => {
+  const supabase = getAdminClient();
+  const { data, error } = await supabase
+    .from("price_history")
+    .select("date, close")
+    .eq("ticker", ticker)
+    .order("date", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error && error.code !== "PGRST116") {
+    throw new Error(`Failed to read latest row for ${ticker}: ${error.message}`);
+  }
+  return (data as { date: string | null; close: number | null } | null) ?? null;
+};
+
+const insertPriceHistoryRows = async (rows: HistoryRow[]) => {
+  if (!rows.length) return;
+  const supabase = getAdminClient();
+  const { error } = await supabase
+    .from("price_history")
+    .upsert(rows, { onConflict: "ticker,date", ignoreDuplicates: true });
+  if (error) {
+    throw new Error(`Failed to insert price history rows: ${error.message}`);
+  }
 };
 
 const mostRecentTradingDay = (now: Date) => {
@@ -91,7 +131,8 @@ const REGIME_REQUIRED_TICKERS = ["SPY", "QQQ", "VIX"] as const;
 const BACKFILL_TICKERS = new Set(["SPY", "QQQ", "IWM"]);
 
 export async function POST(request: Request) {
-  const payload = (await request.json()) as RequestPayload;
+  try {
+    const payload = (await request.json()) as RequestPayload;
   const allocations = payload.allocations ?? [];
   const inputTickers = payload.tickers ?? [];
 
@@ -146,206 +187,204 @@ export async function POST(request: Request) {
   }
 
   const alphaKey = process.env.ALPHA_VANTAGE_API_KEY ?? "";
-
-  const db = getDb();
   const fetchedAt = new Date().toISOString();
   const latestTradingDay = mostRecentTradingDay(new Date());
-  const insert = db.prepare(
-    `insert or ignore into price_history (
-      ticker, date, open, high, low, close, volume, data_source, fetched_at, sort_order
-    ) values (
-      @ticker, @date, @open, @high, @low, @close, @volume, @data_source, @fetched_at, @sort_order
-    )`
-  );
 
   const results: Record<string, any> = {};
   let totalInserted = 0;
 
   for (const ticker of tickers) {
-    const isCrypto = cryptoTickers.has(ticker);
-    const existingCount = db
-      .prepare("select count(*) as c from price_history where ticker = ?")
-      .get(ticker) as { c: number };
-    const needsBackfill = BACKFILL_TICKERS.has(ticker) && (existingCount?.c ?? 0) < 200;
-    const latestRow = db
-      .prepare(
-        "select date, close from price_history where ticker = ? order by date desc limit 1"
-      )
-      .get(ticker) as { date: string | null; close: number | null };
-    const latestDate = latestRow?.date ?? null;
+    try {
+      const isCrypto = cryptoTickers.has(ticker);
+      const existingCount = await countTickerRows(ticker);
+      const needsBackfill = BACKFILL_TICKERS.has(ticker) && existingCount < 200;
+      const latestRow = await getLatestTickerRow(ticker);
+      const latestDate = latestRow?.date ?? null;
 
-    let rows: HistoryRow[] = [];
+      let rows: HistoryRow[] = [];
 
-    if (isCrypto) {
-      const productId = ticker === "BTC" ? "BTC-USD" : `${ticker}-USD`;
-      const url = new URL(
-        `https://api.exchange.coinbase.com/products/${productId}/candles`
-      );
-      url.searchParams.set("granularity", "86400");
+      if (isCrypto) {
+        const productId = ticker === "BTC" ? "BTC-USD" : `${ticker}-USD`;
+        const url = new URL(
+          `https://api.exchange.coinbase.com/products/${productId}/candles`
+        );
+        url.searchParams.set("granularity", "86400");
 
-      const response = await fetch(url.toString());
-      if (!response.ok) {
-        results[ticker] = { error: `Fetch failed (${response.status}).` };
-        continue;
-      }
-      const data = (await response.json()) as Array<
-        [number, number, number, number, number, number]
-      >;
-      if (!Array.isArray(data) || !data.length) {
-        results[ticker] = {
-          error: "No time series returned from Coinbase Exchange.",
-        };
-        continue;
-      }
-
-      rows = data
-        .map((entry) => {
-          const [time, low, high, open, close, volume] = entry;
-          const date = new Date(time * 1000).toISOString().slice(0, 10);
-          if (
-            !Number.isFinite(open) ||
-            !Number.isFinite(high) ||
-            !Number.isFinite(low) ||
-            !Number.isFinite(close)
-          ) {
-            return null;
-          }
-          if (latestDate && date <= latestDate) {
-            return null;
-          }
-          const sort_order = Number(date.replace(/-/g, ""));
-          return {
-            ticker,
-            date,
-            open,
-            high,
-            low,
-            close,
-            volume: Number.isFinite(volume) ? volume : 0,
-            data_source: "Coinbase Exchange (Daily)",
-            fetched_at: fetchedAt,
-            sort_order,
+        const response = await fetch(url.toString());
+        if (!response.ok) {
+          results[ticker] = { error: `Fetch failed (${response.status}).` };
+          continue;
+        }
+        const data = (await response.json()) as Array<
+          [number, number, number, number, number, number]
+        >;
+        if (!Array.isArray(data) || !data.length) {
+          results[ticker] = {
+            error: "No time series returned from Coinbase Exchange.",
           };
-        })
-        .filter(Boolean) as typeof rows;
-    } else if (ticker === "VIX") {
-      const vix = await fetchFredVixSeries(ticker, latestDate, fetchedAt);
-      if (vix.error) {
-        results[ticker] = { error: vix.error };
-        continue;
-      }
-      rows = vix.rows;
-    } else {
-      const url = new URL("https://www.alphavantage.co/query");
-      url.searchParams.set("function", "TIME_SERIES_DAILY");
-      url.searchParams.set("symbol", ticker);
-      url.searchParams.set("outputsize", needsBackfill ? "full" : "compact");
-      url.searchParams.set("apikey", alphaKey);
+          continue;
+        }
 
-      const response = await fetch(url.toString());
-      if (!response.ok) {
-        results[ticker] = { error: `Fetch failed (${response.status}).` };
-        continue;
-      }
-      const rawText = await response.text();
-      let data: any = null;
-      try {
-        data = JSON.parse(rawText);
-      } catch {
-        results[ticker] = { error: "Invalid JSON from Alpha Vantage.", raw: rawText };
-        continue;
-      }
-      const series = data["Time Series (Daily)"] as Record<string, AlphaDailyRow> | undefined;
-      if (!series) {
-        results[ticker] = {
-          error:
-            data["Error Message"] ??
-            data["Note"] ??
-            data["Information"] ??
-            "No time series returned.",
-          meta: data["Meta Data"] ?? null,
-        };
-        continue;
-      }
+        rows = data
+          .map((entry) => {
+            const [time, low, high, open, close, volume] = entry;
+            const date = new Date(time * 1000).toISOString().slice(0, 10);
+            if (
+              !Number.isFinite(open) ||
+              !Number.isFinite(high) ||
+              !Number.isFinite(low) ||
+              !Number.isFinite(close)
+            ) {
+              return null;
+            }
+            if (latestDate && date <= latestDate) {
+              return null;
+            }
+            const sort_order = Number(date.replace(/-/g, ""));
+            return {
+              ticker,
+              date,
+              open,
+              high,
+              low,
+              close,
+              volume: Number.isFinite(volume) ? volume : 0,
+              data_source: "Coinbase Exchange (Daily)",
+              fetched_at: fetchedAt,
+              sort_order,
+            };
+          })
+          .filter(Boolean) as typeof rows;
+      } else if (ticker === "VIX") {
+        const vix = await fetchFredVixSeries(ticker, latestDate, fetchedAt);
+        if (vix.error) {
+          results[ticker] = { error: vix.error };
+          continue;
+        }
+        rows = vix.rows;
+      } else {
+        const url = new URL("https://www.alphavantage.co/query");
+        url.searchParams.set("function", "TIME_SERIES_DAILY");
+        url.searchParams.set("symbol", ticker);
+        url.searchParams.set("outputsize", needsBackfill ? "full" : "compact");
+        url.searchParams.set("apikey", alphaKey);
 
-      rows = Object.entries(series)
-        .map(([date, values]) => {
-          const open = Number(values["1. open"]);
-          const high = Number(values["2. high"]);
-          const low = Number(values["3. low"]);
-          const close = Number(values["4. close"]);
-          const volumeRaw = values["5. volume"];
-          const volume = Number.isFinite(Number(volumeRaw)) ? Number(volumeRaw) : 0;
-          if (
-            !Number.isFinite(open) ||
-            !Number.isFinite(high) ||
-            !Number.isFinite(low) ||
-            !Number.isFinite(close)
-          ) {
-            return null;
-          }
-          if (!needsBackfill && latestDate && date <= latestDate) {
-            return null;
-          }
-          const sort_order = Number(date.replace(/-/g, ""));
-          return {
-            ticker,
-            date,
-            open,
-            high,
-            low,
-            close,
-            volume,
-            data_source: "Alpha Vantage (Daily)",
-            fetched_at: fetchedAt,
-            sort_order,
+        const response = await fetch(url.toString());
+        if (!response.ok) {
+          results[ticker] = { error: `Fetch failed (${response.status}).` };
+          continue;
+        }
+        const rawText = await response.text();
+        let data: any = null;
+        try {
+          data = JSON.parse(rawText);
+        } catch {
+          results[ticker] = { error: "Invalid JSON from Alpha Vantage.", raw: rawText };
+          continue;
+        }
+        const series = data["Time Series (Daily)"] as Record<string, AlphaDailyRow> | undefined;
+        if (!series) {
+          results[ticker] = {
+            error:
+              data["Error Message"] ??
+              data["Note"] ??
+              data["Information"] ??
+              "No time series returned.",
+            meta: data["Meta Data"] ?? null,
           };
-        })
-        .filter(Boolean) as typeof rows;
+          continue;
+        }
+
+        rows = Object.entries(series)
+          .map(([date, values]) => {
+            const open = Number(values["1. open"]);
+            const high = Number(values["2. high"]);
+            const low = Number(values["3. low"]);
+            const close = Number(values["4. close"]);
+            const volumeRaw = values["5. volume"];
+            const volume = Number.isFinite(Number(volumeRaw)) ? Number(volumeRaw) : 0;
+            if (
+              !Number.isFinite(open) ||
+              !Number.isFinite(high) ||
+              !Number.isFinite(low) ||
+              !Number.isFinite(close)
+            ) {
+              return null;
+            }
+            if (!needsBackfill && latestDate && date <= latestDate) {
+              return null;
+            }
+            const sort_order = Number(date.replace(/-/g, ""));
+            return {
+              ticker,
+              date,
+              open,
+              high,
+              low,
+              close,
+              volume,
+              data_source: "Alpha Vantage (Daily)",
+              fetched_at: fetchedAt,
+              sort_order,
+            };
+          })
+          .filter(Boolean) as typeof rows;
+      }
+
+      const beforeCount = existingCount;
+      await insertPriceHistoryRows(rows);
+      const afterCount = await countTickerRows(ticker);
+      const inserted = Math.max(0, afterCount - beforeCount);
+      totalInserted += inserted;
+
+      const latestEffective = (await getLatestTickerRow(ticker)) ?? latestRow ?? {
+        date: null,
+        close: null,
+      };
+      results[ticker] = {
+        inserted,
+        last_price_date: latestEffective.date ?? null,
+        last_price: latestEffective.close ?? null,
+        fetched_at: fetchedAt,
+        data_source: isCrypto
+          ? "Coinbase Exchange (Daily)"
+          : ticker === "VIX"
+          ? "FRED (VIXCLS)"
+          : "Alpha Vantage (Daily)",
+        is_stale: latestEffective.date ? latestEffective.date < latestTradingDay : true,
+      };
+
+      // Alpha Vantage free tier: 1 request/sec
+      if (!isCrypto && ticker !== "VIX") {
+        await new Promise((resolve) => setTimeout(resolve, 1100));
+      }
+    } catch (error) {
+      results[ticker] = {
+        error: error instanceof Error ? error.message : "Unknown import failure.",
+      };
     }
-
-    const tx = db.transaction((items: typeof rows) => {
-      let inserted = 0;
-      items.forEach((row) => {
-        const info = insert.run(row);
-        if (info.changes) inserted += 1;
-      });
-      return inserted;
-    });
-    const inserted = rows.length ? tx(rows) : 0;
-    totalInserted += inserted;
-
-    const latestInserted = rows.sort((a, b) => (a.date < b.date ? 1 : -1))[0];
-    const latestEffective = latestInserted ?? {
-      date: latestRow?.date ?? null,
-      close: latestRow?.close ?? null,
-    };
-    results[ticker] = {
-      inserted,
-      last_price_date: latestEffective.date ?? null,
-      last_price: latestEffective.close ?? null,
-      fetched_at: fetchedAt,
-      data_source: isCrypto
-        ? "Coinbase Exchange (Daily)"
-        : ticker === "VIX"
-        ? "FRED (VIXCLS)"
-        : "Alpha Vantage (Daily)",
-      is_stale: latestEffective.date
-        ? latestEffective.date < latestTradingDay
-        : true,
-    };
-
-    // Alpha Vantage free tier: 1 request/sec
-    await new Promise((resolve) => setTimeout(resolve, 1100));
   }
 
-  const regimeCounts = REGIME_REQUIRED_TICKERS.reduce((acc, ticker) => {
-    const row = db
-      .prepare("select count(*) as c from price_history where ticker = ?")
-      .get(ticker) as { c: number };
-    acc[ticker] = row?.c ?? 0;
-    return acc;
-  }, {} as Record<string, number>);
+  const regimeCounts: Record<string, number> = {};
+  for (const ticker of REGIME_REQUIRED_TICKERS) {
+    try {
+      regimeCounts[ticker] = await countTickerRows(ticker);
+    } catch (error) {
+      return NextResponse.json(
+        {
+          error: `Price import completed, but regime counts failed for ${ticker}.`,
+          detail: error instanceof Error ? error.message : "Unknown count failure.",
+          fetched_at: fetchedAt,
+          latest_trading_day: latestTradingDay,
+          inserted: totalInserted,
+          results,
+          skipped,
+        },
+        { status: 500 }
+      );
+    }
+  }
+
   const insufficient = Object.entries(regimeCounts).filter(([, count]) => count < 200);
   if (insufficient.length) {
     return NextResponse.json(
@@ -366,7 +405,7 @@ export async function POST(request: Request) {
 
   let marketMetrics = null;
   try {
-    marketMetrics = updateMarketMetrics(new Date());
+    marketMetrics = await updateMarketMetrics(new Date());
   } catch (error) {
     const detail =
       error instanceof Error
@@ -397,4 +436,14 @@ export async function POST(request: Request) {
       ? undefined
       : "No new price history rows were inserted. Existing latest prices are shown.",
   });
+  } catch (error) {
+    console.error("Price history update failed:", error);
+    return NextResponse.json(
+      {
+        error: "Price update failed.",
+        detail: error instanceof Error ? error.message : "Unknown error.",
+      },
+      { status: 500 }
+    );
+  }
 }

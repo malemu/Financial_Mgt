@@ -1,4 +1,4 @@
-import { getDb } from "@/lib/db";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin-client";
 
 type LatestPriceResult = {
   ticker: string;
@@ -43,13 +43,19 @@ const alphaVantageKey = () => process.env.ALPHA_VANTAGE_API_KEY;
 
 const normalizeTicker = (ticker: string) => ticker.trim().toUpperCase();
 
-const getLatestFromDb = (ticker: string) => {
-  const db = getDb();
-  return db
-    .prepare(
-      "select date, close, data_source from price_history where ticker = ? order by date desc limit 1"
-    )
-    .get(ticker) as { date: string; close: number; data_source: string } | undefined;
+const getLatestFromDb = async (ticker: string) => {
+  const supabase = createSupabaseAdminClient();
+  const { data, error } = await supabase
+    .from("price_history")
+    .select("date, close, data_source")
+    .eq("ticker", ticker)
+    .order("date", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error && error.code !== "PGRST116") {
+    throw new Error(`Failed to read price history for ${ticker}: ${error.message}`);
+  }
+  return data as { date: string; close: number; data_source: string } | undefined;
 };
 
 const fetchAlphaVantageQuote = async (ticker: string) => {
@@ -97,7 +103,7 @@ export const getLatestPrice = async (
   assetType: "stock" | "crypto" | "unknown"
 ): Promise<LatestPriceResult> => {
   const normalized = normalizeTicker(ticker);
-  const fromDb = getLatestFromDb(normalized);
+  const fromDb = await getLatestFromDb(normalized);
   if (fromDb) {
     return {
       ticker: normalized,
@@ -137,12 +143,23 @@ export const getHistoricalPrice = async (
   limit?: number | null
 ): Promise<HistoricalPriceResult> => {
   const normalized = normalizeTicker(ticker);
-  const db = getDb();
-  const rows = db
-    .prepare(
-      "select date, close from price_history where ticker = ? order by date asc"
-    )
-    .all(normalized) as { date: string; close: number }[];
+  const supabase = createSupabaseAdminClient();
+  let query = supabase
+    .from("price_history")
+    .select("date, close")
+    .eq("ticker", normalized)
+    .order("date", { ascending: true });
+  if (startDate) {
+    query = query.gte("date", startDate);
+  }
+  if (endDate) {
+    query = query.lte("date", endDate);
+  }
+  const { data, error } = await query;
+  if (error) {
+    throw new Error(`Failed to load historical prices: ${error.message}`);
+  }
+  const rows = data ?? [];
   if (!rows.length) {
     return {
       ticker: normalized,
@@ -153,12 +170,6 @@ export const getHistoricalPrice = async (
     };
   }
   let filtered = rows;
-  if (startDate) {
-    filtered = filtered.filter((row) => row.date >= startDate);
-  }
-  if (endDate) {
-    filtered = filtered.filter((row) => row.date <= endDate);
-  }
   if (limit && limit > 0 && filtered.length > limit) {
     filtered = filtered.slice(-limit);
   }
@@ -166,7 +177,7 @@ export const getHistoricalPrice = async (
     ticker: normalized,
     asset_type: assetType,
     prices: filtered,
-    source: "DB price_history",
+    source: "Supabase price_history",
   };
 };
 
@@ -219,27 +230,27 @@ export const getCompanyNews = async (
   }
   return {
     ticker: normalized,
-    items: payload.feed.slice(0, limit).map((item) => ({
-      title: item.title ?? "Untitled",
-      url: item.url ?? "",
-      time_published: item.time_published ?? "",
-      source: item.source ?? "Unknown",
-      summary: item.summary ?? "",
-    })),
+    items: payload.feed
+      .slice(0, limit)
+      .map((item) => ({
+        title: item.title ?? "Untitled",
+        url: item.url ?? "",
+        time_published: item.time_published ?? "",
+        source: item.source ?? "Unknown",
+        summary: item.summary ?? "",
+      })),
     source: "Alpha Vantage (News)",
   };
 };
 
-export const getBasicFundamentals = async (
-  ticker: string
-): Promise<FundamentalsResult> => {
+export const getFundamentals = async (ticker: string): Promise<FundamentalsResult> => {
   const normalized = normalizeTicker(ticker);
   const apiKey = alphaVantageKey();
   if (!apiKey) {
     return {
       ticker: normalized,
-      source: null,
       data: null,
+      source: null,
       error: "Alpha Vantage API key missing.",
     };
   }
@@ -251,43 +262,23 @@ export const getBasicFundamentals = async (
   if (!response.ok) {
     return {
       ticker: normalized,
-      source: null,
       data: null,
+      source: null,
       error: `Alpha Vantage error (${response.status}).`,
     };
   }
   const payload = (await response.json()) as Record<string, string>;
-  if (!payload || !payload.Symbol) {
+  if (!payload || Object.keys(payload).length === 0) {
     return {
       ticker: normalized,
-      source: "Alpha Vantage (Overview)",
       data: null,
+      source: "Alpha Vantage (Overview)",
       error: "Fundamentals unavailable.",
     };
   }
   return {
     ticker: normalized,
+    data: payload,
     source: "Alpha Vantage (Overview)",
-    data: {
-      symbol: payload.Symbol ?? normalized,
-      name: payload.Name ?? null,
-      sector: payload.Sector ?? null,
-      industry: payload.Industry ?? null,
-      market_cap: payload.MarketCapitalization
-        ? Number(payload.MarketCapitalization)
-        : null,
-      pe_ratio: payload.PERatio ? Number(payload.PERatio) : null,
-      forward_pe: payload.ForwardPE ? Number(payload.ForwardPE) : null,
-      eps: payload.EPS ? Number(payload.EPS) : null,
-      profit_margin: payload.ProfitMargin ? Number(payload.ProfitMargin) : null,
-      revenue_ttm: payload.RevenueTTM ? Number(payload.RevenueTTM) : null,
-      diluted_eps_ttm: payload.DilutedEPSTTM ? Number(payload.DilutedEPSTTM) : null,
-      beta: payload.Beta ? Number(payload.Beta) : null,
-      analyst_target_price: payload.AnalystTargetPrice
-        ? Number(payload.AnalystTargetPrice)
-        : null,
-      fiscal_year_end: payload.FiscalYearEnd ?? null,
-    },
   };
 };
-

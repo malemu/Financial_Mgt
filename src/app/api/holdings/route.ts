@@ -17,8 +17,15 @@ const holdingSchema = z.object({
 });
 
 export async function GET() {
-  const items = listHoldings();
-  return NextResponse.json({ items });
+  try {
+    const items = await listHoldings();
+    return NextResponse.json({ items });
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Failed to load holdings" },
+      { status: 500 }
+    );
+  }
 }
 
 export async function POST(request: Request) {
@@ -31,11 +38,18 @@ export async function POST(request: Request) {
     );
   }
   const { previous_asset_id, ...holding } = parsed.data;
-  if (previous_asset_id && previous_asset_id !== holding.asset_id) {
-    renameHoldingAsset(previous_asset_id, holding.asset_id);
+  try {
+    if (previous_asset_id && previous_asset_id !== holding.asset_id) {
+      await renameHoldingAsset(previous_asset_id, holding.asset_id);
+    }
+    const items = await upsertHolding(holding);
+    return NextResponse.json({ items });
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Failed to save holding" },
+      { status: 500 }
+    );
   }
-  const items = upsertHolding(holding);
-  return NextResponse.json({ items });
 }
 
 export async function DELETE(request: Request) {
@@ -44,6 +58,13 @@ export async function DELETE(request: Request) {
   if (!assetId) {
     return NextResponse.json({ error: "Missing asset_id" }, { status: 400 });
   }
-  const items = deleteHolding(assetId);
-  return NextResponse.json({ items });
+  try {
+    const items = await deleteHolding(assetId);
+    return NextResponse.json({ items });
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Failed to delete holding" },
+      { status: 500 }
+    );
+  }
 }

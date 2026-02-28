@@ -10,11 +10,18 @@ const goalSchema = z.object({
 });
 
 export async function GET() {
-  const goal = getGoal();
-  if (!goal) {
-    return NextResponse.json({ error: "Goal not configured" }, { status: 404 });
+  try {
+    const goal = await getGoal();
+    if (!goal) {
+      return NextResponse.json({ error: "Goal not configured" }, { status: 404 });
+    }
+    return NextResponse.json(goal);
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Failed to load goal" },
+      { status: 500 }
+    );
   }
-  return NextResponse.json(goal);
 }
 
 export async function PUT(request: Request) {
@@ -26,6 +33,13 @@ export async function PUT(request: Request) {
       { status: 400 }
     );
   }
-  const goal = upsertGoal(parsed.data);
-  return NextResponse.json(goal, { status: 200 });
+  try {
+    const goal = await upsertGoal(parsed.data);
+    return NextResponse.json(goal, { status: 200 });
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Failed to save goal" },
+      { status: 500 }
+    );
+  }
 }

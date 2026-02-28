@@ -1,4 +1,4 @@
-import { getDb } from "@/lib/db";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin-client";
 import {
   NDX_TICKER,
   RUSSELL_TICKER,
@@ -7,6 +7,10 @@ import {
 } from "@/lib/market-regime-constants";
 import { MarketCycleRegime, MarketRegimeSummary } from "@/lib/types";
 
+const MAX_HISTORY_ROWS = 10000;
+
+const getAdminClient = () => createSupabaseAdminClient();
+
 type PriceRow = { date: string; close: number };
 type MarketMetricsRow = {
   date: string;
@@ -14,10 +18,10 @@ type MarketMetricsRow = {
   sp500_close: number;
   sp500_50dma: number;
   sp500_200dma: number;
-  sp500_above_200: number;
+  sp500_above_200: boolean;
   ndx_close: number;
   ndx_200dma: number;
-  ndx_above_200: number;
+  ndx_above_200: boolean;
   vix_level: number;
   drawdown_from_ath: number;
 };
@@ -27,13 +31,21 @@ const average = (values: number[]) =>
 
 const toIsoDate = (value: Date) => value.toISOString().slice(0, 10);
 
-const readSeries = (ticker: string, date: string) => {
-  const db = getDb();
-  return db
-    .prepare(
-      "select date, close from price_history where ticker = ? and date <= ? order by date asc"
-    )
-    .all(ticker, date) as PriceRow[];
+const readSeries = async (ticker: string, date: string) => {
+  const supabase = getAdminClient();
+  const { data, error } = await supabase
+    .from("price_history")
+    .select("date, close")
+    .eq("ticker", ticker)
+    .lte("date", date)
+    .order("date", { ascending: true })
+    .limit(MAX_HISTORY_ROWS);
+
+  if (error) {
+    throw new Error(`Failed to load ${ticker} history: ${error.message}`);
+  }
+
+  return (data ?? []) as PriceRow[];
 };
 
 const toSummary = (row: MarketMetricsRow): MarketRegimeSummary => {
@@ -91,17 +103,14 @@ const classifyRegime = (params: {
   return "Transitional";
 };
 
-export const calculateDailyMarketMetrics = (inputDate: Date) => {
+export const calculateDailyMarketMetrics = async (inputDate: Date) => {
   const date = toIsoDate(inputDate);
-  const spyRows = readSeries(SP500_TICKER, date);
-  const qqqRows = readSeries(NDX_TICKER, date);
-  const iwmRows = readSeries(RUSSELL_TICKER, date);
-  const vixRows = readSeries(VIX_TICKER, date);
-
-  console.log("SPY rows:", spyRows.length);
-  console.log("QQQ rows:", qqqRows.length);
-  console.log("IWM rows:", iwmRows.length);
-  console.log("VIX rows:", vixRows.length);
+  const [spyRows, qqqRows, iwmRows, vixRows] = await Promise.all([
+    readSeries(SP500_TICKER, date),
+    readSeries(NDX_TICKER, date),
+    readSeries(RUSSELL_TICKER, date),
+    readSeries(VIX_TICKER, date),
+  ]);
 
   if (spyRows.length < 200 || qqqRows.length < 200 || vixRows.length < 200) {
     throw new Error(
@@ -128,8 +137,12 @@ export const calculateDailyMarketMetrics = (inputDate: Date) => {
     drawdownFromATH,
   });
 
-  const sp500Vs200Pct = sp500_200dma ? ((sp500Close - sp500_200dma) / sp500_200dma) * 100 : 0;
-  const ndxVs200Pct = ndx_200dma ? ((ndxClose - ndx_200dma) / ndx_200dma) * 100 : 0;
+  const sp500Vs200Pct = sp500_200dma
+    ? ((sp500Close - sp500_200dma) / sp500_200dma) * 100
+    : 0;
+  const ndxVs200Pct = ndx_200dma
+    ? ((ndxClose - ndx_200dma) / ndx_200dma) * 100
+    : 0;
 
   return {
     date,
@@ -148,72 +161,63 @@ export const calculateDailyMarketMetrics = (inputDate: Date) => {
   } satisfies MarketRegimeSummary;
 };
 
-export const updateMarketMetrics = (inputDate = new Date()) => {
-  const summary = calculateDailyMarketMetrics(inputDate);
+export const updateMarketMetrics = async (inputDate = new Date()) => {
+  const summary = await calculateDailyMarketMetrics(inputDate);
   if (!summary) {
     return null;
   }
 
-  const db = getDb();
-  db.prepare(
-    `insert into market_metrics (
-      id, date, sp500_close, sp500_50dma, sp500_200dma, sp500_above_200,
-      ndx_close, ndx_200dma, ndx_above_200, vix_level, drawdown_from_ath, regime, created_at
-    ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    on conflict(date) do update set
-      sp500_close = excluded.sp500_close,
-      sp500_50dma = excluded.sp500_50dma,
-      sp500_200dma = excluded.sp500_200dma,
-      sp500_above_200 = excluded.sp500_above_200,
-      ndx_close = excluded.ndx_close,
-      ndx_200dma = excluded.ndx_200dma,
-      ndx_above_200 = excluded.ndx_above_200,
-      vix_level = excluded.vix_level,
-      drawdown_from_ath = excluded.drawdown_from_ath,
-      regime = excluded.regime,
-      created_at = excluded.created_at`
-  ).run(
-    `market_metrics_${summary.date}`,
-    summary.date,
-    summary.sp500Close,
-    summary.sp500_50dma,
-    summary.sp500_200dma,
-    summary.sp500Above200 ? 1 : 0,
-    summary.ndxClose,
-    summary.ndx_200dma,
-    summary.ndxAbove200 ? 1 : 0,
-    summary.vixLevel,
-    summary.drawdownFromATH,
-    summary.regime,
-    new Date().toISOString()
-  );
+  const supabase = getAdminClient();
+  const { error } = await supabase.from("market_metrics").upsert({
+    id: `market_metrics_${summary.date}`,
+    date: summary.date,
+    sp500_close: summary.sp500Close,
+    sp500_50dma: summary.sp500_50dma,
+    sp500_200dma: summary.sp500_200dma,
+    sp500_above_200: summary.sp500Above200,
+    ndx_close: summary.ndxClose,
+    ndx_200dma: summary.ndx_200dma,
+    ndx_above_200: summary.ndxAbove200,
+    vix_level: summary.vixLevel,
+    drawdown_from_ath: summary.drawdownFromATH,
+    regime: summary.regime,
+    created_at: new Date().toISOString(),
+  });
+
+  if (error) {
+    throw new Error(`Failed to persist market metrics: ${error.message}`);
+  }
 
   return summary;
 };
 
-export const getCurrentMarketRegimeSummary = () => {
-  const db = getDb();
-  const latest = db
-    .prepare(
-      `select date, regime, sp500_close, sp500_50dma, sp500_200dma, sp500_above_200,
-              ndx_close, ndx_200dma, ndx_above_200, vix_level, drawdown_from_ath
-       from market_metrics
-       order by date desc
-       limit 1`
+export const getCurrentMarketRegimeSummary = async () => {
+  const supabase = getAdminClient();
+  const { data, error } = await supabase
+    .from("market_metrics")
+    .select(
+      "date, regime, sp500_close, sp500_50dma, sp500_200dma, sp500_above_200, ndx_close, ndx_200dma, ndx_above_200, vix_level, drawdown_from_ath"
     )
-    .get() as MarketMetricsRow | undefined;
+    .order("date", { ascending: false })
+    .limit(1);
 
+  if (error) {
+    throw new Error(`Failed to load market metrics: ${error.message}`);
+  }
+
+  const latest = (data ?? [])[0];
   if (latest) {
-    return toSummary(latest);
+    return toSummary(latest as MarketMetricsRow);
   }
 
   try {
-    const computed = updateMarketMetrics(new Date());
+    const computed = await updateMarketMetrics(new Date());
     if (computed) {
       return computed;
     }
   } catch {
     return null;
   }
+
   return null;
 };

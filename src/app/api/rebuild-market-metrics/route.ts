@@ -5,7 +5,7 @@ export const runtime = "nodejs";
 
 export async function POST() {
   try {
-    updateMarketMetrics(new Date());
+    await updateMarketMetrics(new Date());
     return NextResponse.json({ success: true });
   } catch (error) {
     return NextResponse.json(

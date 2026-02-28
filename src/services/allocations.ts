@@ -1,4 +1,4 @@
-import { getDb } from "@/lib/db";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin-client";
 import type { Allocation } from "@/lib/types";
 
 type AllocationRow = {
@@ -15,7 +15,7 @@ type AllocationRow = {
   thesis_last_review: string;
   fundamentals_summary: string;
   price_action: string;
-  thesis_valid: number;
+  thesis_valid: boolean;
   sort_order: number;
 };
 
@@ -36,67 +36,64 @@ const mapRow = (row: AllocationRow): Allocation => ({
   thesis_valid: Boolean(row.thesis_valid),
 });
 
-const nextSortOrder = () => {
-  const db = getDb();
-  const row = db
-    .prepare("select coalesce(max(sort_order), -1) as max_order from allocations")
-    .get() as { max_order: number } | undefined;
-  return (row?.max_order ?? -1) + 1;
+const getClient = () => createSupabaseAdminClient();
+
+const nextSortOrder = async () => {
+  const supabase = getClient();
+  const { data, error } = await supabase
+    .from("allocations")
+    .select("sort_order")
+    .order("sort_order", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) {
+    throw new Error(`Failed to read allocations sort order: ${error.message}`);
+  }
+  return ((data?.sort_order ?? -1) as number) + 1;
 };
 
-export const listAllocations = (): Allocation[] => {
-  const db = getDb();
-  const rows = db
-    .prepare(
-      `select id, asset_id, asset_type, target_weight, max_weight, conviction_tier,
-        expected_cagr, role, thesis_summary, kill_criteria, thesis_last_review,
-        fundamentals_summary, price_action, thesis_valid, sort_order from allocations
-       order by sort_order asc, id asc`
+export const listAllocations = async (): Promise<Allocation[]> => {
+  const supabase = getClient();
+  const { data, error } = await supabase
+    .from("allocations")
+    .select(
+      "id, asset_id, asset_type, target_weight, max_weight, conviction_tier, expected_cagr, role, thesis_summary, kill_criteria, thesis_last_review, fundamentals_summary, price_action, thesis_valid, sort_order"
     )
-    .all() as AllocationRow[];
-  return rows.map(mapRow);
+    .order("sort_order", { ascending: true })
+    .order("id", { ascending: true });
+  if (error) {
+    throw new Error(`Failed to load allocations: ${error.message}`);
+  }
+  return (data ?? []).map(mapRow);
 };
 
-export const upsertAllocation = (allocation: Allocation): Allocation[] => {
-  const db = getDb();
-  const existing = db
-    .prepare("select sort_order from allocations where id = ?")
-    .get(allocation.id) as { sort_order: number } | undefined;
-  const sortOrder = existing?.sort_order ?? nextSortOrder();
-  db.prepare(
-    `insert into allocations (
-      id, asset_id, asset_type, target_weight, max_weight, conviction_tier,
-      expected_cagr, role, thesis_summary, kill_criteria, thesis_last_review,
-      fundamentals_summary, price_action, thesis_valid, sort_order
-    ) values (
-      @id, @asset_id, @asset_type, @target_weight, @max_weight, @conviction_tier,
-      @expected_cagr, @role, @thesis_summary, @kill_criteria, @thesis_last_review,
-      @fundamentals_summary, @price_action, @thesis_valid, @sort_order
-    ) on conflict(id) do update set
-      asset_id = excluded.asset_id,
-      asset_type = excluded.asset_type,
-      target_weight = excluded.target_weight,
-      max_weight = excluded.max_weight,
-      conviction_tier = excluded.conviction_tier,
-      expected_cagr = excluded.expected_cagr,
-      role = excluded.role,
-      thesis_summary = excluded.thesis_summary,
-      kill_criteria = excluded.kill_criteria,
-      thesis_last_review = excluded.thesis_last_review,
-      fundamentals_summary = excluded.fundamentals_summary,
-      price_action = excluded.price_action,
-      thesis_valid = excluded.thesis_valid,
-      sort_order = excluded.sort_order`
-  ).run({
+export const upsertAllocation = async (allocation: Allocation): Promise<Allocation[]> => {
+  const supabase = getClient();
+  const { data: existing, error: existingError } = await supabase
+    .from("allocations")
+    .select("sort_order")
+    .eq("id", allocation.id)
+    .maybeSingle();
+  if (existingError) {
+    throw new Error(`Failed to load allocation sort order: ${existingError.message}`);
+  }
+  const sortOrder = existing?.sort_order ?? (await nextSortOrder());
+  const { error } = await supabase.from("allocations").upsert({
     ...allocation,
-    thesis_valid: allocation.thesis_valid ? 1 : 0,
+    thesis_valid: allocation.thesis_valid,
     sort_order: sortOrder,
   });
+  if (error) {
+    throw new Error(`Failed to upsert allocation: ${error.message}`);
+  }
   return listAllocations();
 };
 
-export const deleteAllocation = (id: string): Allocation[] => {
-  const db = getDb();
-  db.prepare("delete from allocations where id = ?").run(id);
+export const deleteAllocation = async (id: string): Promise<Allocation[]> => {
+  const supabase = getClient();
+  const { error } = await supabase.from("allocations").delete().eq("id", id);
+  if (error) {
+    throw new Error(`Failed to delete allocation: ${error.message}`);
+  }
   return listAllocations();
 };

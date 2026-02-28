@@ -14,8 +14,15 @@ const netWorthPointSchema = z.object({
 });
 
 export async function GET() {
-  const items = listNetWorthHistory();
-  return NextResponse.json({ items });
+  try {
+    const items = await listNetWorthHistory();
+    return NextResponse.json({ items });
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Failed to load history" },
+      { status: 500 }
+    );
+  }
 }
 
 export async function POST(request: Request) {
@@ -27,13 +34,27 @@ export async function POST(request: Request) {
       { status: 400 }
     );
   }
-  const items = upsertNetWorthPoint(parsed.data);
-  return NextResponse.json({ item: parsed.data, items }, { status: 201 });
+  try {
+    const items = await upsertNetWorthPoint(parsed.data);
+    return NextResponse.json({ item: parsed.data, items }, { status: 201 });
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Failed to save history point" },
+      { status: 500 }
+    );
+  }
 }
 
 export async function DELETE(request: Request) {
   const url = new URL(request.url);
   const date = url.searchParams.get("date") ?? undefined;
-  const result = deleteNetWorthPoint(date ?? undefined);
-  return NextResponse.json(result);
+  try {
+    const result = await deleteNetWorthPoint(date ?? undefined);
+    return NextResponse.json(result);
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Failed to delete history point" },
+      { status: 500 }
+    );
+  }
 }

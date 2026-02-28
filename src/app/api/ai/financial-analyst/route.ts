@@ -10,7 +10,7 @@ import {
   getLatestPrice,
   getHistoricalPrice,
   getCompanyNews,
-  getBasicFundamentals,
+  getFundamentals,
 } from "@/lib/market-data";
 import { getCurrentMarketRegimeSummary } from "@/lib/server/marketRegimeEngine";
 
@@ -376,7 +376,7 @@ export async function POST(request: Request) {
     },
     contribution_plan: payload.contributionPlan ?? null,
     market_regime: payload.marketRegime ?? null,
-    market_regime_summary: getCurrentMarketRegimeSummary(),
+    market_regime_summary: await getCurrentMarketRegimeSummary(),
     time_horizon_years: timeHorizonYears,
     risk_constraints: {
       no_day_trading: payload.riskConstraints?.noDayTrading ?? null,
@@ -609,7 +609,7 @@ ${JSON.stringify(context)}
           } else if (toolName === "get_company_news") {
             toolResult = await getCompanyNews(args.ticker, args.limit ?? 6);
           } else if (toolName === "get_basic_fundamentals") {
-            toolResult = await getBasicFundamentals(args.ticker);
+            toolResult = await getFundamentals(args.ticker);
           }
         } catch (toolError) {
           toolResult = {

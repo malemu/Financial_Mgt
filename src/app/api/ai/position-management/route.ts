@@ -367,7 +367,7 @@ export async function POST(request: Request) {
     }));
 
     const weights = computeWeights(holdingsForWeights, payload.priceMap);
-    const marketRegimeSummary = getCurrentMarketRegimeSummary();
+    const marketRegimeSummary = await getCurrentMarketRegimeSummary();
     const eligible = payload.allocations.filter(
       (allocation) => allocation.conviction_tier >= payload.convictionThreshold
     );

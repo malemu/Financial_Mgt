@@ -21,7 +21,15 @@ const renameSchema = z.object({
 });
 
 export async function GET() {
-  return NextResponse.json({ prices: getPriceMap() });
+  try {
+    const prices = await getPriceMap();
+    return NextResponse.json({ prices });
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Failed to load prices" },
+      { status: 500 }
+    );
+  }
 }
 
 export async function POST(request: Request) {
@@ -33,8 +41,15 @@ export async function POST(request: Request) {
       { status: 400 }
     );
   }
-  const prices = setAssetPrice(parsed.data.asset_id, parsed.data.price);
-  return NextResponse.json({ prices });
+  try {
+    const prices = await setAssetPrice(parsed.data.asset_id, parsed.data.price);
+    return NextResponse.json({ prices });
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Failed to save price" },
+      { status: 500 }
+    );
+  }
 }
 
 export async function PUT(request: Request) {
@@ -46,8 +61,15 @@ export async function PUT(request: Request) {
       { status: 400 }
     );
   }
-  const prices = renameAssetPrice(parsed.data.from, parsed.data.to);
-  return NextResponse.json({ prices });
+  try {
+    const prices = await renameAssetPrice(parsed.data.from, parsed.data.to);
+    return NextResponse.json({ prices });
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Failed to rename price" },
+      { status: 500 }
+    );
+  }
 }
 
 export async function DELETE(request: Request) {
@@ -56,8 +78,15 @@ export async function DELETE(request: Request) {
   if (!assetId) {
     return NextResponse.json({ error: "Missing asset_id" }, { status: 400 });
   }
-  const prices = deleteAssetPrice(assetId);
-  return NextResponse.json({ prices });
+  try {
+    const prices = await deleteAssetPrice(assetId);
+    return NextResponse.json({ prices });
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Failed to delete price" },
+      { status: 500 }
+    );
+  }
 }
 
 export async function PATCH(request: Request) {
@@ -73,8 +102,15 @@ export async function PATCH(request: Request) {
   if (!asset_id) {
     return NextResponse.json({ error: "Missing asset_id" }, { status: 400 });
   }
-  const prices = ensure
-    ? ensureAssetPrice(asset_id, price ?? 0)
-    : setAssetPrice(asset_id, price ?? 0);
-  return NextResponse.json({ prices });
+  try {
+    const prices = ensure
+      ? await ensureAssetPrice(asset_id, price ?? 0)
+      : await setAssetPrice(asset_id, price ?? 0);
+    return NextResponse.json({ prices });
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Failed to update price" },
+      { status: 500 }
+    );
+  }
 }

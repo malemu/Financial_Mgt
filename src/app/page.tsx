@@ -286,6 +286,7 @@ export default function Home() {
   const [uploadResult, setUploadResult] = useState<any>(null);
   const [uploadTicker, setUploadTicker] = useState("");
   const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadMode, setUploadMode] = useState<"append" | "replace">("append");
   const [analystHistory, setAnalystHistory] = useState<AnalystMessage[]>([]);
   const [analystInput, setAnalystInput] = useState("");
   const [analystStatus, setAnalystStatus] = useState<"idle" | "loading" | "error">(
@@ -556,7 +557,7 @@ export default function Home() {
       const response = await fetch("/api/price-history/upload", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ticker: uploadTicker, rows }),
+        body: JSON.stringify({ ticker: uploadTicker, rows, mode: uploadMode }),
       });
       if (!response.ok) {
         const errorPayload = await response.json().catch(() => null);
@@ -2353,6 +2354,16 @@ export default function Home() {
                   onChange={(event) => setUploadFile(event.target.files?.[0] ?? null)}
                   className="text-[10px]"
                 />
+                <label className="flex items-center gap-2 rounded-full border border-[color:var(--line)] px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]">
+                  <input
+                    type="checkbox"
+                    checked={uploadMode === "replace"}
+                    onChange={(event) =>
+                      setUploadMode(event.target.checked ? "replace" : "append")
+                    }
+                  />
+                  Replace Dates
+                </label>
                 <button
                   onClick={uploadPriceHistory}
                   disabled={uploadStatus === "running"}
@@ -2367,8 +2378,15 @@ export default function Home() {
               {uploadResult && (
                 <div className="mt-2">
                   Uploaded {uploadResult.inserted} rows, skipped {uploadResult.skipped}.
+                  {" "}
+                  <span className="uppercase tracking-[0.2em] text-[10px] text-[color:var(--muted)]">
+                    Mode: {uploadResult.mode ?? uploadMode}
+                  </span>
                 </div>
               )}
+              <p className="mt-2 text-[10px] uppercase tracking-[0.2em] text-[color:var(--muted)]">
+                Replace mode removes matching dates before inserting.
+              </p>
             </div>
             {priceStatus.length > 0 && (
               <div className="mt-3 rounded-2xl border border-[color:var(--line)] bg-white/70 px-4 py-3 text-xs text-[color:var(--muted)]">

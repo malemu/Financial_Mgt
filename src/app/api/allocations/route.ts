@@ -23,8 +23,15 @@ const allocationSchema = z.object({
 });
 
 export async function GET() {
-  const items = listAllocations();
-  return NextResponse.json({ items });
+  try {
+    const items = await listAllocations();
+    return NextResponse.json({ items });
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Failed to load allocations" },
+      { status: 500 }
+    );
+  }
 }
 
 export async function POST(request: Request) {
@@ -36,8 +43,15 @@ export async function POST(request: Request) {
       { status: 400 }
     );
   }
-  const items = upsertAllocation(parsed.data as Allocation);
-  return NextResponse.json({ items });
+  try {
+    const items = await upsertAllocation(parsed.data as Allocation);
+    return NextResponse.json({ items });
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Failed to save allocation" },
+      { status: 500 }
+    );
+  }
 }
 
 export async function DELETE(request: Request) {
@@ -46,6 +60,13 @@ export async function DELETE(request: Request) {
   if (!id) {
     return NextResponse.json({ error: "Missing id" }, { status: 400 });
   }
-  const items = deleteAllocation(id);
-  return NextResponse.json({ items });
+  try {
+    const items = await deleteAllocation(id);
+    return NextResponse.json({ items });
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Failed to delete allocation" },
+      { status: 500 }
+    );
+  }
 }
