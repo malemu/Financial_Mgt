@@ -3,6 +3,7 @@ import OpenAI from "openai";
 import {
   Allocation,
   DriftResult,
+  Holding,
   MarketRegime,
   PositionAction,
   PriceMap,
@@ -16,7 +17,12 @@ export const runtime = "nodejs";
 
 type RequestPayload = {
   allocations: Allocation[];
-  holdings: { asset_id: string; shares: number }[];
+  holdings: {
+    asset_id: string;
+    shares: number;
+    entry_price?: number;
+    cost_basis?: number;
+  }[];
   priceMap: PriceMap;
   drift: DriftResult[];
   marketRegime: MarketRegime;
@@ -353,7 +359,14 @@ export async function POST(request: Request) {
       )
       .all() as DbPriceRow[];
 
-    const weights = computeWeights(payload.holdings, payload.priceMap);
+    const holdingsForWeights: Holding[] = payload.holdings.map((holding) => ({
+      asset_id: holding.asset_id,
+      shares: holding.shares,
+      entry_price: holding.entry_price ?? 0,
+      cost_basis: holding.cost_basis ?? 0,
+    }));
+
+    const weights = computeWeights(holdingsForWeights, payload.priceMap);
     const marketRegimeSummary = getCurrentMarketRegimeSummary();
     const eligible = payload.allocations.filter(
       (allocation) => allocation.conviction_tier >= payload.convictionThreshold

@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
+import type {
+  ChatCompletionMessageToolCall,
+  ChatCompletionTool,
+} from "openai/resources/chat/completions";
 import { getDb } from "@/lib/db";
 import { computeWeights, computePortfolioValue } from "@/lib/finance";
 import {
@@ -483,7 +487,7 @@ Context JSON:
 ${JSON.stringify(context)}
 `.trim();
 
-  const tools = [
+  const tools: ChatCompletionTool[] = [
     {
       type: "function",
       function: {
@@ -569,7 +573,8 @@ ${JSON.stringify(context)}
     });
 
     let assistantMessage = response.choices?.[0]?.message?.content?.trim() ?? "";
-    let toolCalls = response.choices?.[0]?.message?.tool_calls ?? [];
+    let toolCalls: ChatCompletionMessageToolCall[] =
+      response.choices?.[0]?.message?.tool_calls ?? [];
     let safetyCounter = 0;
 
     while (toolCalls.length && safetyCounter < 4) {
@@ -580,6 +585,7 @@ ${JSON.stringify(context)}
         tool_calls: toolCalls,
       });
       for (const call of toolCalls) {
+        if (call.type !== "function") continue;
         const toolName = call.function.name;
         let toolResult: unknown = { error: "Unknown tool." };
         try {
@@ -629,7 +635,7 @@ ${JSON.stringify(context)}
         messages,
       });
       assistantMessage = response.choices?.[0]?.message?.content?.trim() ?? "";
-      toolCalls = response.choices?.[0]?.message?.tool_calls ?? [];
+      toolCalls = (response.choices?.[0]?.message?.tool_calls ?? []) as ChatCompletionMessageToolCall[];
     }
 
     db.prepare(

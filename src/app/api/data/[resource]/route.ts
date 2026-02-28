@@ -1,12 +1,12 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 
 export const runtime = "nodejs";
 
-type RouteParams = {
-  params: {
+type RouteContext = {
+  params: Promise<{
     resource: string;
-  };
+  }>;
 };
 
 const json = (payload: unknown, status = 200) =>
@@ -14,7 +14,7 @@ const json = (payload: unknown, status = 200) =>
 
 const unknownResource = () => json({ error: "Unknown resource" }, 404);
 
-export async function GET(_request: Request, { params }: RouteParams) {
+export async function GET(_request: NextRequest, { params }: RouteContext) {
   const db = getDb();
   const { resource } = await params;
 
@@ -100,7 +100,7 @@ export async function GET(_request: Request, { params }: RouteParams) {
   }
 }
 
-export async function PUT(request: Request, { params }: RouteParams) {
+export async function PUT(request: NextRequest, { params }: RouteContext) {
   const db = getDb();
   const { resource } = await params;
   const payload = await request.json();

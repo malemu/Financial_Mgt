@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 
 export const runtime = "nodejs";
@@ -6,11 +6,11 @@ export const runtime = "nodejs";
 const isValidDate = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value);
 
 export async function GET(
-  request: Request,
-  context: { params: { ticker: string } }
+  request: NextRequest,
+  context: { params: Promise<{ ticker: string }> }
 ) {
   const { ticker: rawTicker } = await context.params;
-  let ticker = rawTicker?.toUpperCase();
+  let ticker: string | undefined = rawTicker?.toUpperCase();
   if (!ticker) {
     try {
       const pathname = new URL(request.url).pathname;

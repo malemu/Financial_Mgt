@@ -20,6 +20,18 @@ type MarketSnapshot = {
 };
 
 type RateRange = { best: string; base: string; worst: string };
+type MortgageRateSnapshot = {
+  current: number | null;
+  high12m: number | null;
+  low12m: number | null;
+  longAvg: number | null;
+  outlook2y: RateRange;
+};
+
+type MortgageRatesState = {
+  mortgage30: MortgageRateSnapshot;
+  mortgage15: MortgageRateSnapshot;
+};
 
 const money = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -120,6 +132,16 @@ const TrendChart = ({ data }: { data: { date: string; value: number | null }[] }
   );
 };
 
+type MarketActivityPoint = {
+  date: string;
+  inventory: number;
+  medianSalePrice?: number | null;
+  monthsSupply: number;
+  daysOnMarket: number;
+  newListings: number;
+  closedSales: number;
+};
+
 const MarketActivityChart = ({
   data,
   label,
@@ -127,10 +149,10 @@ const MarketActivityChart = ({
   valueKey,
   formatValue,
 }: {
-  data: { date: string; [key: string]: number };
+  data: MarketActivityPoint[];
   label: string;
   color: string;
-  valueKey: string;
+  valueKey: Exclude<keyof MarketActivityPoint, "date">;
   formatValue?: (value: number) => string;
 }) => {
   if (!data.length) {
@@ -140,7 +162,7 @@ const MarketActivityChart = ({
       </div>
     );
   }
-  const values = data.map((point) => point[valueKey]);
+  const values = data.map((point) => Number(point[valueKey] ?? 0));
   const min = Math.min(...values);
   const max = Math.max(...values);
   const range = max - min || 1;
@@ -151,10 +173,11 @@ const MarketActivityChart = ({
     const x =
       padding +
       (index / Math.max(1, data.length - 1)) * (width - padding * 2);
+    const pointValue = Number(point[valueKey] ?? 0);
     const y =
       height -
       padding -
-      ((point[valueKey] - min) / range) * (height - padding * 2);
+      ((pointValue - min) / range) * (height - padding * 2);
     return { x, y };
   });
   const path = points
@@ -163,7 +186,7 @@ const MarketActivityChart = ({
     )
     .join(" ");
   const latest = data[data.length - 1];
-  const latestValue = latest[valueKey];
+  const latestValue = Number(latest[valueKey] ?? 0);
   const displayValue = formatValue ? formatValue(latestValue) : latestValue.toFixed(1);
   return (
     <div className="grid gap-2">
@@ -220,9 +243,23 @@ const MARKET_METRICS = [
     color: "rgba(124,58,237,0.75)",
     format: (value: number) => Math.round(value).toString(),
   },
-] as const;
+] as const satisfies ReadonlyArray<{
+  key: Exclude<keyof MarketActivityPoint, "date">;
+  label: string;
+  color: string;
+  format: (value: number) => string;
+}>;
 
-const mockRates = {
+const mockRates: {
+  fedFunds: {
+    current: number;
+    change3m: number;
+    change12m: number;
+    cycle: string;
+  };
+  mortgage30: MortgageRateSnapshot;
+  mortgage15: MortgageRateSnapshot;
+} = {
   fedFunds: {
     current: 5.33,
     change3m: -0.25,
@@ -250,6 +287,23 @@ const mockRates = {
       base: "5.1-6.1%",
       worst: "5.8-6.8%",
     } as RateRange,
+  },
+};
+
+const initialMortgageRates: MortgageRatesState = {
+  mortgage30: {
+    ...mockRates.mortgage30,
+    current: null,
+    high12m: null,
+    low12m: null,
+    longAvg: null,
+  },
+  mortgage15: {
+    ...mockRates.mortgage15,
+    current: null,
+    high12m: null,
+    low12m: null,
+    longAvg: null,
   },
 };
 
@@ -464,22 +518,9 @@ const summaryLabel = (value: string) =>
 
 export default function HousingIntelligencePage() {
   const [marketId, setMarketId] = useState(markets[0]?.id ?? "");
-  const [mortgageRates, setMortgageRates] = useState({
-    mortgage30: {
-      ...mockRates.mortgage30,
-      current: null,
-      high12m: null,
-      low12m: null,
-      longAvg: null,
-    },
-    mortgage15: {
-      ...mockRates.mortgage15,
-      current: null,
-      high12m: null,
-      low12m: null,
-      longAvg: null,
-    },
-  });
+  const [mortgageRates, setMortgageRates] = useState<MortgageRatesState>(
+    initialMortgageRates
+  );
   const [mortgageSource, setMortgageSource] = useState({
     label: "Freddie Mac PMMS",
     latestDate: "",
@@ -593,14 +634,17 @@ export default function HousingIntelligencePage() {
             };
           };
         };
-        if (!payload?.series?.mortgage30 || !payload?.series?.mortgage15) {
+        const series = payload.series;
+        const mortgage30Series = series?.mortgage30;
+        const mortgage15Series = series?.mortgage15;
+        if (!mortgage30Series || !mortgage15Series) {
           setMortgageError("Mortgage rates unavailable right now.");
           return;
         }
         if (!mounted) return;
         setMortgageError(null);
         const mergeRates = (
-          base: typeof mockRates.mortgage30,
+          base: MortgageRateSnapshot,
           incoming: {
             current: number | null;
             high12m: number | null;
@@ -615,8 +659,8 @@ export default function HousingIntelligencePage() {
           longAvg: Number.isFinite(incoming.longAvg) ? incoming.longAvg : base.longAvg,
         });
         setMortgageRates((prev) => ({
-          mortgage30: mergeRates(prev.mortgage30, payload.series.mortgage30),
-          mortgage15: mergeRates(prev.mortgage15, payload.series.mortgage15),
+          mortgage30: mergeRates(prev.mortgage30, mortgage30Series),
+          mortgage15: mergeRates(prev.mortgage15, mortgage15Series),
         }));
         setMortgageSource({
           label: payload.source ?? "Freddie Mac PMMS",

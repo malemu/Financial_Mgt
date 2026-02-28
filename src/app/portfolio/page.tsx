@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { Allocation, Holding } from "@/lib/types";
+import { Allocation, AllocationRole, Holding } from "@/lib/types";
 import {
   defaultAllocations,
   defaultHoldings,
@@ -310,7 +310,7 @@ export default function PortfolioPage() {
                             value={item.role}
                             onChange={(event) =>
                               updateAllocation(item.id, {
-                                role: event.target.value,
+                                role: event.target.value as AllocationRole,
                               })
                             }
                           />

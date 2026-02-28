@@ -402,7 +402,7 @@ export default function Home() {
       if (!response.ok || !payload.reply) {
         throw new Error(payload.error ?? "Analyst response failed.");
       }
-      const updatedHistory = [
+      const updatedHistory: AnalystMessage[] = [
         ...nextHistory,
         {
           role: "assistant",

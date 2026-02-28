@@ -194,10 +194,10 @@ const ensurePriceHistorySchema = (instance: Database.Database) => {
     .get();
   if (!table) return;
 
-  const columns = instance
+  const columns = (instance
     .prepare("pragma table_info('price_history')")
-    .all()
-    .map((col: TableInfoRow) => col.name);
+    .all() as TableInfoRow[])
+    .map((col) => col.name);
 
   const hasTicker = columns.includes("ticker");
   const hasAssetId = columns.includes("asset_id");
@@ -259,10 +259,10 @@ const ensureLocalMarketActivitySchema = (instance: Database.Database) => {
     .get();
   if (!table) return;
 
-  const columns = instance
+  const columns = (instance
     .prepare("pragma table_info('local_market_activity')")
-    .all()
-    .map((col: TableInfoRow) => col.name);
+    .all() as TableInfoRow[])
+    .map((col) => col.name);
   const required: Record<string, string> = {
     market_id: "text",
     date: "text",
@@ -293,10 +293,10 @@ const ensureAssetsSchema = (instance: Database.Database) => {
     .get();
   if (!table) return;
 
-  const columns = instance
+  const columns = (instance
     .prepare("pragma table_info('assets')")
-    .all()
-    .map((col: TableInfoRow) => col.name);
+    .all() as TableInfoRow[])
+    .map((col) => col.name);
   const required: Record<string, string> = {
     ticker: "text",
     name: "text",
@@ -319,10 +319,10 @@ const ensureMarketMetricsSchema = (instance: Database.Database) => {
     .get();
   if (!table) return;
 
-  const columns = instance
+  const columns = (instance
     .prepare("pragma table_info('market_metrics')")
-    .all()
-    .map((col: TableInfoRow) => col.name);
+    .all() as TableInfoRow[])
+    .map((col) => col.name);
 
   const required: Record<string, string> = {
     id: "text",

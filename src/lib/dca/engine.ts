@@ -225,12 +225,18 @@ export const computeBuyQualityScore = (params: {
   return clamp(composite, 0, 100);
 };
 
-export const mapScoreToMultiplier = (score: number) => {
-  if (score >= 85) return 2.0;
-  if (score >= 70) return 1.5;
+export const mapScoreToMultiplier = (
+  score: number,
+  settings?: Pick<DcaSettings, "minMultiplier" | "highMultiplierMin" | "highMultiplierMax">
+) => {
+  const minMultiplier = settings?.minMultiplier ?? 0.25;
+  const highMultiplierMin = settings?.highMultiplierMin ?? 1.5;
+  const highMultiplierMax = settings?.highMultiplierMax ?? 2.0;
+  if (score >= 85) return highMultiplierMax;
+  if (score >= 70) return highMultiplierMin;
   if (score >= 55) return 1.0;
   if (score >= 40) return 0.5;
-  return 0.25;
+  return minMultiplier;
 };
 
 const buildSchedule = (

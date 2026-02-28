@@ -1,6 +1,19 @@
 import { cookies } from "next/headers";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { createServerClient } from "@supabase/auth-helpers-nextjs";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 export const createSupabaseRouteHandlerClient = () => {
-  return createRouteHandlerClient({ cookies });
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error("Supabase environment variables are not configured.");
+  }
+  return createServerClient(supabaseUrl, supabaseAnonKey, {
+    cookies: {
+      async getAll() {
+        const store = await cookies();
+        return store.getAll();
+      },
+    },
+  }) as SupabaseClient;
 };

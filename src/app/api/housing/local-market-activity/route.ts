@@ -340,7 +340,7 @@ export const upsertLocalMarketActivity = async ({
 }: {
   db: ReturnType<typeof getDb>;
   market: string;
-  meta: { city: string; state: string; county: string };
+  meta: { city: string; state: string; county: string; aliases?: string[] };
   mode: "city" | "county" | "auto";
 }) => {
   let rows: {
@@ -361,7 +361,7 @@ export const upsertLocalMarketActivity = async ({
       stateCode: meta.state,
       countyName: meta.county,
       regionType: "city",
-      aliases: meta.aliases,
+      aliases: meta.aliases ?? [],
     });
     source = "redfin_city";
   } else if (mode === "county") {
@@ -371,7 +371,7 @@ export const upsertLocalMarketActivity = async ({
       stateCode: meta.state,
       countyName: meta.county,
       regionType: "county",
-      aliases: meta.aliases,
+      aliases: meta.aliases ?? [],
     });
     source = "redfin_county";
   } else {
@@ -381,7 +381,7 @@ export const upsertLocalMarketActivity = async ({
       stateCode: meta.state,
       countyName: meta.county,
       regionType: "county",
-      aliases: meta.aliases,
+      aliases: meta.aliases ?? [],
     });
     source = "redfin_county";
     if (!rows.length) {
@@ -391,7 +391,7 @@ export const upsertLocalMarketActivity = async ({
         stateCode: meta.state,
         countyName: meta.county,
         regionType: "city",
-        aliases: meta.aliases,
+        aliases: meta.aliases ?? [],
       });
       source = "redfin_city";
     }

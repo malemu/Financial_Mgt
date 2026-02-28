@@ -1,15 +1,15 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 
 export const runtime = "nodejs";
 
-type RouteParams = {
-  params: {
+type RouteContext = {
+  params: Promise<{
     key: string;
-  };
+  }>;
 };
 
-export async function GET(_request: Request, { params }: RouteParams) {
+export async function GET(_request: NextRequest, { params }: RouteContext) {
   const db = getDb();
   const { key } = await params;
   const row = db
@@ -27,7 +27,7 @@ export async function GET(_request: Request, { params }: RouteParams) {
   });
 }
 
-export async function PUT(request: Request, { params }: RouteParams) {
+export async function PUT(request: NextRequest, { params }: RouteContext) {
   const payload = await request.json();
   const db = getDb();
   const now = new Date().toISOString();
@@ -39,7 +39,7 @@ export async function PUT(request: Request, { params }: RouteParams) {
   return NextResponse.json({ key, updated_at: now });
 }
 
-export async function DELETE(_request: Request, { params }: RouteParams) {
+export async function DELETE(_request: NextRequest, { params }: RouteContext) {
   const db = getDb();
   const { key } = await params;
   db.prepare("delete from kv_store where key = ?").run(key);

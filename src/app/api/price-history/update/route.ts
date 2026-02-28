@@ -23,6 +23,14 @@ type HistoryRow = {
   sort_order: number;
 };
 
+type AlphaDailyRow = {
+  "1. open": string;
+  "2. high": string;
+  "3. low": string;
+  "4. close": string;
+  "5. volume": string;
+};
+
 const mostRecentTradingDay = (now: Date) => {
   const date = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
   while (date.getUTCDay() === 0 || date.getUTCDay() === 6) {
@@ -137,6 +145,8 @@ export async function POST(request: Request) {
     );
   }
 
+  const alphaKey = process.env.ALPHA_VANTAGE_API_KEY ?? "";
+
   const db = getDb();
   const fetchedAt = new Date().toISOString();
   const latestTradingDay = mostRecentTradingDay(new Date());
@@ -230,7 +240,7 @@ export async function POST(request: Request) {
       url.searchParams.set("function", "TIME_SERIES_DAILY");
       url.searchParams.set("symbol", ticker);
       url.searchParams.set("outputsize", needsBackfill ? "full" : "compact");
-      url.searchParams.set("apikey", process.env.ALPHA_VANTAGE_API_KEY);
+      url.searchParams.set("apikey", alphaKey);
 
       const response = await fetch(url.toString());
       if (!response.ok) {
@@ -245,7 +255,7 @@ export async function POST(request: Request) {
         results[ticker] = { error: "Invalid JSON from Alpha Vantage.", raw: rawText };
         continue;
       }
-      const series = data["Time Series (Daily)"];
+      const series = data["Time Series (Daily)"] as Record<string, AlphaDailyRow> | undefined;
       if (!series) {
         results[ticker] = {
           error:

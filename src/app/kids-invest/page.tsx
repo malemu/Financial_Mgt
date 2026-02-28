@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   LineChart,
   Line,
@@ -11,6 +11,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
+import type { Formatter } from "recharts/types/component/DefaultTooltipContent";
 import { useLocalStorageState } from "@/lib/use-local-storage";
 
 type Frequency = "monthly" | "quarterly" | "yearly";
@@ -117,6 +118,10 @@ export default function KidsInvestPage() {
     "kids-invest-simulator",
     defaultInput
   );
+  const [chartsReady, setChartsReady] = useState(false);
+  useEffect(() => {
+    setChartsReady(true);
+  }, []);
   const compareCagrs = useMemo(
     () => parseCompareCagrs(input.compareCagrs),
     [input.compareCagrs]
@@ -165,6 +170,20 @@ export default function KidsInvestPage() {
     });
     return rows;
   }, [primary.points, comparisons, compareCagrs, input.startYear]);
+
+  const tooltipFormatter: Formatter<number, string> = (value, name) => {
+    const numericValue = typeof value === "number" ? value : 0;
+    const seriesName = typeof name === "string" ? name : "";
+    if (seriesName.startsWith("cagr_")) {
+      const index = Number(seriesName.split("_")[1] ?? 0);
+      const cagr = compareCagrs[index] ?? input.cagr;
+      return [money.format(numericValue), `${cagr.toFixed(1)}% CAGR`];
+    }
+    if (seriesName === "base_real") {
+      return [money.format(numericValue), "Inflation-adjusted"];
+    }
+    return [money.format(numericValue), "Base CAGR"];
+  };
 
   return (
     <div className="relative min-h-screen overflow-hidden">
@@ -413,78 +432,74 @@ export default function KidsInvestPage() {
                 {input.name || "Child"} - {input.startYear}-{input.startYear + input.years} - Age {input.startAge}-{input.startAge + input.years}
               </div>
               <div className="h-72 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={chartData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(20,16,12,0.12)" />
-                    <XAxis
-                      dataKey="year"
-                      tick={{ fill: "var(--muted)", fontSize: 11 }}
-                      tickFormatter={(value) => {
-                        const age = input.startAge + (Number(value) - input.startYear);
-                        return `${value} (Age ${age})`;
-                      }}
-                      axisLine={{ stroke: "rgba(20,16,12,0.2)" }}
-                      tickLine={{ stroke: "rgba(20,16,12,0.2)" }}
-                    />
-                    <YAxis
-                      tickFormatter={(value) => money.format(value)}
-                      width={90}
-                      tick={{ fill: "var(--muted)", fontSize: 11 }}
-                      axisLine={{ stroke: "rgba(20,16,12,0.2)" }}
-                      tickLine={{ stroke: "rgba(20,16,12,0.2)" }}
-                    />
-                    <Tooltip
-                      formatter={(value: number, name: string) => {
-                        if (name.startsWith("cagr_")) {
-                          const index = Number(name.split("_")[1] ?? 0);
-                          const cagr = compareCagrs[index];
-                          return [money.format(value), `${cagr.toFixed(1)}% CAGR`];
-                        }
-                        if (name === "base_real") {
-                          return [money.format(value), "Inflation-adjusted"];
-                        }
-                        return [money.format(value), "Base CAGR"];
-                      }}
-                      labelFormatter={(label) => {
-                        const age = input.startAge + (Number(label) - input.startYear);
-                        return `Year ${label} (Age ${age})`;
-                      }}
-                      contentStyle={{
-                        background: "rgba(255,255,255,0.95)",
-                        border: "1px solid var(--line)",
-                        borderRadius: "10px",
-                        fontSize: "12px",
-                      }}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="base"
-                      stroke="var(--accent)"
-                      strokeWidth={2}
-                      dot={false}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="base_real"
-                      stroke="var(--accent)"
-                      strokeWidth={2}
-                      dot={false}
-                      strokeDasharray="6 6"
-                      strokeOpacity={0.6}
-                    />
-                    {compareCagrs.map((cagr, index) => (
+                {chartsReady ? (
+                  <ResponsiveContainer width="100%" height="100%" minHeight={280}>
+                    <LineChart data={chartData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(20,16,12,0.12)" />
+                      <XAxis
+                        dataKey="year"
+                        tick={{ fill: "var(--muted)", fontSize: 11 }}
+                        tickFormatter={(value) => {
+                          const age = input.startAge + (Number(value) - input.startYear);
+                          return `${value} (Age ${age})`;
+                        }}
+                        axisLine={{ stroke: "rgba(20,16,12,0.2)" }}
+                        tickLine={{ stroke: "rgba(20,16,12,0.2)" }}
+                      />
+                      <YAxis
+                        tickFormatter={(value) => money.format(value)}
+                        width={90}
+                        tick={{ fill: "var(--muted)", fontSize: 11 }}
+                        axisLine={{ stroke: "rgba(20,16,12,0.2)" }}
+                        tickLine={{ stroke: "rgba(20,16,12,0.2)" }}
+                      />
+                      <Tooltip
+                        formatter={tooltipFormatter}
+                        labelFormatter={(label) => {
+                          const age = input.startAge + (Number(label) - input.startYear);
+                          return `Year ${label} (Age ${age})`;
+                        }}
+                        contentStyle={{
+                          background: "rgba(255,255,255,0.95)",
+                          border: "1px solid var(--line)",
+                          borderRadius: "10px",
+                          fontSize: "12px",
+                        }}
+                      />
                       <Line
-                        key={`cmp-${cagr}`}
                         type="monotone"
-                        dataKey={`cagr_${index}`}
-                        stroke={index % 2 === 0 ? "var(--accent-2)" : "var(--accent-strong)"}
+                        dataKey="base"
+                        stroke="var(--accent)"
                         strokeWidth={2}
                         dot={false}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="base_real"
+                        stroke="var(--accent)"
+                        strokeWidth={2}
+                        dot={false}
+                        strokeDasharray="6 6"
                         strokeOpacity={0.6}
                       />
-                    ))}
-                  </LineChart>
-                </ResponsiveContainer>
+                      {compareCagrs.map((cagr, index) => (
+                        <Line
+                          key={`cmp-${cagr}`}
+                          type="monotone"
+                          dataKey={`cagr_${index}`}
+                          stroke={index % 2 === 0 ? "var(--accent-2)" : "var(--accent-strong)"}
+                          strokeWidth={2}
+                          dot={false}
+                          strokeOpacity={0.6}
+                        />
+                      ))}
+                    </LineChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center rounded-2xl border border-[color:var(--line)] bg-white/70 text-xs text-[color:var(--muted)]">
+                    Loading chart…
+                  </div>
+                )}
               </div>
               <div className="mt-3 flex flex-wrap gap-3 text-xs text-[color:var(--muted)]">
                 <span className="flex items-center gap-2">

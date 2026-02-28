@@ -128,15 +128,20 @@ export const calculateDailyMarketMetrics = (inputDate: Date) => {
     drawdownFromATH,
   });
 
+  const sp500Vs200Pct = sp500_200dma ? ((sp500Close - sp500_200dma) / sp500_200dma) * 100 : 0;
+  const ndxVs200Pct = ndx_200dma ? ((ndxClose - ndx_200dma) / ndx_200dma) * 100 : 0;
+
   return {
     date,
     regime,
     sp500Close,
     sp500_50dma,
     sp500_200dma,
+    sp500Vs200Pct,
     sp500Above200,
     ndxClose,
     ndx_200dma,
+    ndxVs200Pct,
     ndxAbove200,
     vixLevel,
     drawdownFromATH,
