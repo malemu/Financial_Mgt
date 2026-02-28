@@ -1,15 +1,22 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser-client";
 
 function LoginForm() {
-  const supabase = createSupabaseBrowserClient();
+  const [supabase, setSupabase] = useState<SupabaseClient | null>(null);
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get("redirect") ?? "/";
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setSupabase(createSupabaseBrowserClient());
+    }
+  }, []);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -19,6 +26,7 @@ function LoginForm() {
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (!supabase) return;
     setStatus("loading");
     setError(null);
     try {
@@ -83,7 +91,7 @@ function LoginForm() {
           <button
             type="submit"
             className="rounded-full bg-[color:var(--accent)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-white disabled:opacity-60"
-            disabled={status === "loading"}
+            disabled={status === "loading" || !supabase}
           >
             {mode === "login" ? "Sign In" : "Register"}
           </button>
