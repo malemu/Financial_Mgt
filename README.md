@@ -3,10 +3,6 @@
 ## 🎯 Strategic Objective
 
 This application is a long-horizon capital management platform designed to optimize the probability of achieving:
-
-- **$1,000,000 net worth (excluding home equity) by 2028**
-- **$1,500,000 net worth (excluding home equity) by 2030**
-
 The system focuses on disciplined capital allocation, structured modeling, and measurable financial progress.
 
 ---
