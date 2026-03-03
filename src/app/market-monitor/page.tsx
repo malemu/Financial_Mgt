@@ -298,7 +298,9 @@ export default function MarketMonitorPage() {
           : undefined
       );
       const latestIndex = engine.history.length - 1;
-      const latestPrice = engine.history[latestIndex]?.close;
+      const historicalPrice = engine.history[latestIndex]?.close;
+      const priceOverride = priceMap[asset.asset_id];
+      const latestPrice = priceOverride ?? historicalPrice ?? null;
       const score = engine.metricsSeries[latestIndex]?.score ?? 0;
       const avgScore =
         engine.metricsSeries.reduce((sum, metric) => sum + metric.score, 0) /
@@ -309,14 +311,14 @@ export default function MarketMonitorPage() {
         assetId: asset.asset_id,
         assetType: asset.asset_type,
         status: "ready",
-        latestPrice,
+        latestPrice: latestPrice ?? undefined,
         score,
         avgScore,
         label,
         multiplier,
       };
     });
-  }, [trackedAssets, historyMap, normalizedSettings, marketSummary]);
+  }, [trackedAssets, historyMap, normalizedSettings, marketSummary, priceMap]);
 
   const detailEngine = useMemo(() => {
     if (!detailAsset) return null;
