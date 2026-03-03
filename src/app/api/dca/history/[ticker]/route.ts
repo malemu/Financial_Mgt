@@ -1,9 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin-client";
 
 export const runtime = "nodejs";
 
 const isValidDate = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value);
+
+const getAdminClient = () => createSupabaseAdminClient();
+
+type HistoryRow = {
+  date: string;
+  close: number;
+};
 
 export async function GET(
   request: NextRequest,
@@ -36,24 +43,32 @@ export async function GET(
     return NextResponse.json({ error: "Invalid end date." }, { status: 400 });
   }
 
-  const db = getDb();
-  let query = "select date, close from price_history where ticker = ?";
-  const params: Array<string> = [ticker];
+  const supabase = getAdminClient();
+  let query = supabase
+    .from("price_history")
+    .select("date, close")
+    .eq("ticker", ticker)
+    .order("date", { ascending: true });
 
-  if (start && end) {
-    query += " and date between ? and ?";
-    params.push(start, end);
-  } else if (start) {
-    query += " and date >= ?";
-    params.push(start);
-  } else if (end) {
-    query += " and date <= ?";
-    params.push(end);
+  if (start) {
+    query = query.gte("date", start);
+  }
+  if (end) {
+    query = query.lte("date", end);
   }
 
-  query += " order by date asc";
+  const { data, error } = await query;
+  if (error) {
+    return NextResponse.json(
+      { error: `Failed to load ${ticker} history: ${error.message}` },
+      { status: 500 }
+    );
+  }
 
-  const rows = db.prepare(query).all(...params) as { date: string; close: number }[];
+  const rows = (data ?? []).map((row) => ({
+    date: row.date as string,
+    close: Number(row.close),
+  })) as HistoryRow[];
 
   return NextResponse.json({
     ticker,

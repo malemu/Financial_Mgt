@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin-client";
 
 export const runtime = "nodejs";
 
@@ -23,6 +23,8 @@ type LinePoint = {
   time: string;
   value: number;
 };
+
+const getAdminClient = () => createSupabaseAdminClient();
 
 const toWeekStartIso = (isoDate: string) => {
   const date = new Date(`${isoDate}T00:00:00Z`);
@@ -96,12 +98,27 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "ticker is required" }, { status: 400 });
   }
 
-  const db = getDb();
-  const rows = db
-    .prepare(
-      "select date, open, high, low, close from price_history where ticker = ? order by date asc"
-    )
-    .all(ticker) as DailyRow[];
+  const supabase = getAdminClient();
+  const { data, error } = await supabase
+    .from("price_history")
+    .select("date, open, high, low, close")
+    .eq("ticker", ticker)
+    .order("date", { ascending: true });
+
+  if (error) {
+    return NextResponse.json(
+      { error: `Failed to load ${ticker} history: ${error.message}` },
+      { status: 500 }
+    );
+  }
+
+  const rows = (data ?? []).map((row) => ({
+    date: row.date as string,
+    open: Number(row.open),
+    high: Number(row.high),
+    low: Number(row.low),
+    close: Number(row.close),
+  })) as DailyRow[];
 
   if (!rows.length) {
     return NextResponse.json({ candles: [], ma50: [], ma200: [] });
