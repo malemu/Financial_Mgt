@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import type { AssetType, MarketRegimeSummary } from "@/lib/types";
+import type { Allocation, AssetType, MarketRegimeSummary } from "@/lib/types";
 import { defaultAllocations, defaultHoldings, defaultPriceMap } from "@/lib/mock-data";
 import { useAllocationsState } from "@/hooks/useAllocationsState";
 import { useHoldingsState } from "@/hooks/useHoldingsState";
