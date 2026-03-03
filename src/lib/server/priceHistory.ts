@@ -40,7 +40,7 @@ export const fetchLatestPriceHistoryRows = async <T extends { date: string }>(
       throw new Error(`Failed to load ${ticker} history: ${error.message}`);
     }
 
-    const batch = (data ?? []) as T[];
+    const batch = ((data ?? []) as unknown) as T[];
     rows.push(...batch);
     if (batch.length < Math.min(ROW_CHUNK, remaining)) {
       break;

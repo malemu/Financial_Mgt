@@ -669,7 +669,7 @@ export default function MarketMonitorPage() {
         <div className="absolute inset-0 opacity-60 mix-blend-multiply [background-image:repeating-linear-gradient(135deg,transparent_0,transparent_26px,rgba(214,206,196,0.2)_27px,rgba(214,206,196,0.2)_28px)]" />
       </div>
 
-      <main className="relative mx-auto flex w-full max-w-[1200px] flex-col gap-8 px-6 py-10 lg:px-10">
+      <main className="relative mx-auto flex w-full max-w-screen-2xl flex-col gap-8 px-6 py-10 lg:px-10">
         <header className="flex flex-wrap items-center justify-between gap-6">
           <div className="flex max-w-2xl flex-col gap-3">
             <span className="text-xs uppercase tracking-[0.3em] text-[color:var(--muted)]">

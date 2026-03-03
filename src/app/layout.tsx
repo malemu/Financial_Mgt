@@ -34,7 +34,7 @@ export default function RootLayout({
         className={`${spaceGrotesk.variable} ${fraunces.variable} antialiased`}
       >
         <header className="relative">
-          <nav className="mx-auto flex w-full max-w-6xl items-center justify-between gap-6 rounded-b-3xl bg-[color:var(--nav-bar)] px-6 py-5 text-[color:var(--nav-bar-ink)] shadow-[var(--shadow)] lg:px-10">
+          <nav className="mx-auto flex w-full max-w-screen-2xl items-center justify-between gap-6 rounded-b-3xl bg-[color:var(--nav-bar)] px-6 py-5 text-[color:var(--nav-bar-ink)] shadow-[var(--shadow)] lg:px-10">
             <div className="flex items-center gap-4">
               <div className="flex h-11 w-11 items-center justify-center rounded-full border border-white/20 bg-white/10 text-sm font-semibold text-[color:var(--nav-bar-ink)]">
                 CO
