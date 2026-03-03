@@ -1,4 +1,5 @@
 import { createSupabaseAdminClient } from "@/lib/supabase/admin-client";
+import { fetchLatestPriceHistoryRows } from "@/lib/server/priceHistory";
 
 type LatestPriceResult = {
   ticker: string;
@@ -145,27 +146,21 @@ export const getHistoricalPrice = async (
   limit?: number | null
 ): Promise<HistoricalPriceResult> => {
   const normalized = normalizeTicker(ticker);
-  const supabase = createSupabaseAdminClient();
-  let query = supabase
-    .from("price_history")
-    .select("date, close")
-    .eq("ticker", normalized);
-  if (startDate) {
-    query = query.gte("date", startDate);
-  }
-  if (endDate) {
-    query = query.lte("date", endDate);
-  }
   const effectiveLimit = limit && limit > 0 ? limit : MAX_HISTORY_ROWS;
-  const { data, error } = await query
-    .order("date", { ascending: false })
-    .limit(effectiveLimit);
-  if (error) {
-    throw new Error(`Failed to load historical prices: ${error.message}`);
+  let rows: { date: string; close: number }[] = [];
+  try {
+    rows = await fetchLatestPriceHistoryRows<{ date: string; close: number }>({
+      ticker: normalized,
+      select: "date, close",
+      limit: effectiveLimit,
+      start: startDate ?? undefined,
+      end: endDate ?? undefined,
+    });
+  } catch (error) {
+    throw new Error(
+      `Failed to load historical prices: ${error instanceof Error ? error.message : "Unknown error"}`
+    );
   }
-  const rows = (data ?? [])
-    .map((row) => ({ date: row.date as string, close: Number(row.close) }))
-    .sort((a, b) => a.date.localeCompare(b.date));
   if (!rows.length) {
     return {
       ticker: normalized,

@@ -1,11 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin-client";
+import { fetchLatestPriceHistoryRows } from "@/lib/server/priceHistory";
 
 export const runtime = "nodejs";
 
 const isValidDate = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value);
-
-const getAdminClient = () => createSupabaseAdminClient();
 
 const MAX_HISTORY_ROWS = 5000;
 
@@ -45,33 +43,25 @@ export async function GET(
     return NextResponse.json({ error: "Invalid end date." }, { status: 400 });
   }
 
-  const supabase = getAdminClient();
-  let query = supabase
-    .from("price_history")
-    .select("date, close")
-    .eq("ticker", ticker);
-
-  if (start) {
-    query = query.gte("date", start);
-  }
-  if (end) {
-    query = query.lte("date", end);
-  }
-
-  const { data, error } = await query.order("date", { ascending: false }).limit(MAX_HISTORY_ROWS);
-  if (error) {
+  let rows: HistoryRow[] = [];
+  try {
+    rows = await fetchLatestPriceHistoryRows<HistoryRow>({
+      ticker,
+      select: "date, close",
+      limit: MAX_HISTORY_ROWS,
+      start,
+      end,
+    });
+  } catch (error) {
     return NextResponse.json(
-      { error: `Failed to load ${ticker} history: ${error.message}` },
+      {
+        error: `Failed to load ${ticker} history: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`,
+      },
       { status: 500 }
     );
   }
-
-  const rows = (data ?? [])
-    .map((row) => ({
-      date: row.date as string,
-      close: Number(row.close),
-    }))
-    .sort((a, b) => a.date.localeCompare(b.date)) as HistoryRow[];
 
   return NextResponse.json({
     ticker,

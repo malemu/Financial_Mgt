@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin-client";
+import { fetchLatestPriceHistoryRows } from "@/lib/server/priceHistory";
 
 export const runtime = "nodejs";
 
@@ -23,8 +23,6 @@ type LinePoint = {
   time: string;
   value: number;
 };
-
-const getAdminClient = () => createSupabaseAdminClient();
 
 const MAX_HISTORY_ROWS = 5000;
 
@@ -100,30 +98,23 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "ticker is required" }, { status: 400 });
   }
 
-  const supabase = getAdminClient();
-  const { data, error } = await supabase
-    .from("price_history")
-    .select("date, open, high, low, close")
-    .eq("ticker", ticker)
-    .order("date", { ascending: false })
-    .limit(MAX_HISTORY_ROWS);
-
-  if (error) {
+  let rows: DailyRow[] = [];
+  try {
+    rows = await fetchLatestPriceHistoryRows<DailyRow>({
+      ticker,
+      select: "date, open, high, low, close",
+      limit: MAX_HISTORY_ROWS,
+    });
+  } catch (error) {
     return NextResponse.json(
-      { error: `Failed to load ${ticker} history: ${error.message}` },
+      {
+        error: `Failed to load ${ticker} history: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`,
+      },
       { status: 500 }
     );
   }
-
-  const rows = (data ?? [])
-    .map((row) => ({
-      date: row.date as string,
-      open: Number(row.open),
-      high: Number(row.high),
-      low: Number(row.low),
-      close: Number(row.close),
-    }))
-    .sort((a, b) => a.date.localeCompare(b.date)) as DailyRow[];
 
   if (!rows.length) {
     return NextResponse.json({ candles: [], ma50: [], ma200: [] });

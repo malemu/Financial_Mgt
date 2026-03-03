@@ -6,6 +6,7 @@ import {
   VIX_TICKER,
 } from "@/lib/market-regime-constants";
 import { MarketCycleRegime, MarketRegimeSummary } from "@/lib/types";
+import { fetchLatestPriceHistoryRows } from "@/lib/server/priceHistory";
 
 const MAX_HISTORY_ROWS = 10000;
 
@@ -32,20 +33,18 @@ const average = (values: number[]) =>
 const toIsoDate = (value: Date) => value.toISOString().slice(0, 10);
 
 const readSeries = async (ticker: string, date: string) => {
-  const supabase = getAdminClient();
-  const { data, error } = await supabase
-    .from("price_history")
-    .select("date, close")
-    .eq("ticker", ticker)
-    .lte("date", date)
-    .order("date", { ascending: false })
-    .limit(MAX_HISTORY_ROWS);
-
-  if (error) {
-    throw new Error(`Failed to load ${ticker} history: ${error.message}`);
+  try {
+    return await fetchLatestPriceHistoryRows<PriceRow>({
+      ticker,
+      select: "date, close",
+      limit: MAX_HISTORY_ROWS,
+      end: date,
+    });
+  } catch (error) {
+    throw new Error(
+      `Failed to load ${ticker} history: ${error instanceof Error ? error.message : "Unknown error"}`
+    );
   }
-
-  return ((data ?? []) as PriceRow[]).sort((a, b) => a.date.localeCompare(b.date));
 };
 
 const toSummary = (row: MarketMetricsRow): MarketRegimeSummary => {
