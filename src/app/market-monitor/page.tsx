@@ -2,18 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import type {
-  Allocation,
-  AssetType,
-  Holding,
-  MarketRegimeSummary,
-  PriceMap,
-} from "@/lib/types";
-import {
-  defaultAllocations,
-  defaultHoldings,
-  defaultPriceMap,
-} from "@/lib/mock-data";
+import type { AssetType, MarketRegimeSummary } from "@/lib/types";
+import { defaultAllocations, defaultHoldings, defaultPriceMap } from "@/lib/mock-data";
+import { useAllocationsState } from "@/hooks/useAllocationsState";
+import { useHoldingsState } from "@/hooks/useHoldingsState";
+import { usePriceMapState } from "@/hooks/usePriceMapState";
 import {
   DcaSettings,
   PricePoint,
@@ -52,7 +45,7 @@ const defaultDcaSettings: DcaSettings = {
   minMultiplier: 0.25,
   highMultiplierMin: 1.5,
   highMultiplierMax: 2,
-  lookbackYears: undefined,
+  lookbackYears: 5,
 };
 
 const scoreToRegime = (score: number) => {
@@ -110,22 +103,18 @@ const buildAccumulationLabel = (
 };
 
 export default function MarketMonitorPage() {
-  const [allocations] = useLocalStorageState<Allocation[]>(
-    "allocations",
-    defaultAllocations
-  );
-  const [holdings] = useLocalStorageState<Holding[]>(
-    "holdings",
-    defaultHoldings
-  );
-  const [priceMap] = useLocalStorageState<PriceMap>(
-    "prices",
-    defaultPriceMap
-  );
+  const { allocations } = useAllocationsState(defaultAllocations);
+  const { holdings } = useHoldingsState(defaultHoldings);
+  const { priceMap } = usePriceMapState(defaultPriceMap);
   const [settings, setSettings] = useLocalStorageState<DcaSettings>(
     "dca-settings",
     defaultDcaSettings
   );
+  useEffect(() => {
+    if (!settings.lookbackYears || settings.lookbackYears <= 0) {
+      setSettings((prev) => ({ ...prev, lookbackYears: 5 }));
+    }
+  }, [settings.lookbackYears, setSettings]);
   const [historyMap, setHistoryMap] = useState<Record<string, HistoryState>>({});
   const [detailAsset, setDetailAsset] = useState<DetailState | null>(null);
   const [detailHoverIndex, setDetailHoverIndex] = useState<number | null>(null);

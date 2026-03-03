@@ -69,7 +69,7 @@ const defaultDcaSettings: DcaSettings = {
   minMultiplier: 0.25,
   highMultiplierMin: 1.5,
   highMultiplierMax: 2,
-  lookbackYears: undefined,
+  lookbackYears: 5,
 };
 
 const formatCompactCurrency = (value: number) => {
@@ -139,6 +139,11 @@ export default function Home() {
     "dca-settings",
     defaultDcaSettings
   );
+  useEffect(() => {
+    if (!dcaSettings.lookbackYears || dcaSettings.lookbackYears <= 0) {
+      setDcaSettings((prev) => ({ ...prev, lookbackYears: 5 }));
+    }
+  }, [dcaSettings.lookbackYears, setDcaSettings]);
   const [triggers, setTriggers] = useLocalStorageState<TriggerRule[]>(
     "triggers",
     defaultTriggers
