@@ -374,52 +374,58 @@ export const runDcaEngine = (
   const lastDate = history[history.length - 1].date;
   const cutoffMs =
     parseDateMs(lastDate) - effectiveLookbackYears * 365 * MS_PER_DAY;
-  const windowedHistory = history.filter(
+  const windowStartIndex = history.findIndex(
     (point) => parseDateMs(point.date) >= cutoffMs
   );
-  const closes = windowedHistory.map((point) => point.close);
+  const trimmedStart = windowStartIndex === -1 ? 0 : windowStartIndex;
+
+  const closes = history.map((point) => point.close);
   const maWindow = assetType === "crypto" ? 300 : 200;
-  const maSeries = buildMovingAverage(closes, maWindow);
-  const { drawdown52w, drawdownAth } = buildDrawdowns(windowedHistory);
+  const maSeriesFull = buildMovingAverage(closes, maWindow);
+  const { drawdown52w, drawdownAth } = buildDrawdowns(history);
   const volatilityPercentiles = buildVolatilityPercentiles(closes);
   const { forwardReturns } = buildForwardReturns(closes);
 
-  const drawdownSeverity = drawdown52w.map((value, index) =>
+  const drawdownSeverityFull = drawdown52w.map((value, index) =>
     Math.max(value, drawdownAth[index])
   );
-  const maDistanceBelow = maSeries.map((ma, index) => {
+  const maDistanceRawFull = maSeriesFull.map((ma, index) => {
     if (ma == null) return 0;
-    const distance = ((windowedHistory[index].close - ma) / ma) * 100;
-    return clamp(-distance, 0, 100);
+    return ((history[index].close - ma) / ma) * 100;
   });
+  const maDistanceBelowFull = maDistanceRawFull.map((value) =>
+    value < 0 ? Math.min(-value, 100) : 0
+  );
 
-  const metricsSeries: DcaMetrics[] = windowedHistory.map((point, index) => {
+  const metricsSeriesFull: DcaMetrics[] = history.map((point, index) => {
     const forwardReturnAvgPct = computeForwardAverage(
       index,
-      drawdownSeverity,
-      maDistanceBelow,
+      drawdownSeverityFull,
+      maDistanceBelowFull,
       forwardReturns
     );
     const score = computeBuyQualityScore({
-      drawdownSeverity: drawdownSeverity[index],
-      maDistanceBelow: maDistanceBelow[index],
+      drawdownSeverity: drawdownSeverityFull[index],
+      maDistanceBelow: maDistanceBelowFull[index],
       forwardReturnAvgPct,
-      volatilityPercentile: volatilityPercentiles[index],
+      volatilityPercentile: volatilityPercentiles[index] ?? 0,
     });
     return {
       drawdown52wPct: drawdown52w[index],
       drawdownAthPct: drawdownAth[index],
-      maDistancePct: maSeries[index]
-        ? ((point.close - (maSeries[index] ?? 0)) / (maSeries[index] ?? 1)) * 100
-        : 0,
-      volatilityPercentile: volatilityPercentiles[index],
+      maDistancePct: maDistanceRawFull[index],
+      volatilityPercentile: volatilityPercentiles[index] ?? 0,
       forwardReturnAvgPct,
       score,
     };
   });
 
-  const schedule = buildSchedule(windowedHistory, settings, metricsSeries, regimeContext);
-  const lastPrice = windowedHistory[windowedHistory.length - 1].close;
+  const trimmedHistory = history.slice(trimmedStart);
+  const trimmedMaSeries = maSeriesFull.slice(trimmedStart);
+  const trimmedMetricsSeries = metricsSeriesFull.slice(trimmedStart);
+
+  const schedule = buildSchedule(trimmedHistory, settings, trimmedMetricsSeries, regimeContext);
+  const lastPrice = trimmedHistory[trimmedHistory.length - 1].close;
   const standard = buildSimulationSummary(
     schedule,
     settings.baseContribution,
@@ -440,9 +446,9 @@ export const runDcaEngine = (
       : 0;
 
   return {
-    history: windowedHistory,
-    maSeries,
-    metricsSeries,
+    history: trimmedHistory,
+    maSeries: trimmedMaSeries,
+    metricsSeries: trimmedMetricsSeries,
     schedule,
     simulation: {
       standard,
