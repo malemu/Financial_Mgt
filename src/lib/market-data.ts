@@ -39,6 +39,8 @@ type FundamentalsResult = {
   error?: string;
 };
 
+const MAX_HISTORY_ROWS = 5000;
+
 const alphaVantageKey = () => process.env.ALPHA_VANTAGE_API_KEY;
 
 const normalizeTicker = (ticker: string) => ticker.trim().toUpperCase();
@@ -147,19 +149,23 @@ export const getHistoricalPrice = async (
   let query = supabase
     .from("price_history")
     .select("date, close")
-    .eq("ticker", normalized)
-    .order("date", { ascending: true });
+    .eq("ticker", normalized);
   if (startDate) {
     query = query.gte("date", startDate);
   }
   if (endDate) {
     query = query.lte("date", endDate);
   }
-  const { data, error } = await query;
+  const effectiveLimit = limit && limit > 0 ? limit : MAX_HISTORY_ROWS;
+  const { data, error } = await query
+    .order("date", { ascending: false })
+    .limit(effectiveLimit);
   if (error) {
     throw new Error(`Failed to load historical prices: ${error.message}`);
   }
-  const rows = data ?? [];
+  const rows = (data ?? [])
+    .map((row) => ({ date: row.date as string, close: Number(row.close) }))
+    .sort((a, b) => a.date.localeCompare(b.date));
   if (!rows.length) {
     return {
       ticker: normalized,

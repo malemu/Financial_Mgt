@@ -38,14 +38,14 @@ const readSeries = async (ticker: string, date: string) => {
     .select("date, close")
     .eq("ticker", ticker)
     .lte("date", date)
-    .order("date", { ascending: true })
+    .order("date", { ascending: false })
     .limit(MAX_HISTORY_ROWS);
 
   if (error) {
     throw new Error(`Failed to load ${ticker} history: ${error.message}`);
   }
 
-  return (data ?? []) as PriceRow[];
+  return ((data ?? []) as PriceRow[]).sort((a, b) => a.date.localeCompare(b.date));
 };
 
 const toSummary = (row: MarketMetricsRow): MarketRegimeSummary => {
@@ -105,7 +105,7 @@ const classifyRegime = (params: {
 
 export const calculateDailyMarketMetrics = async (inputDate: Date) => {
   const date = toIsoDate(inputDate);
-  const [spyRows, qqqRows, iwmRows, vixRows] = await Promise.all([
+  const [spyRows, qqqRows, , vixRows] = await Promise.all([
     readSeries(SP500_TICKER, date),
     readSeries(NDX_TICKER, date),
     readSeries(RUSSELL_TICKER, date),

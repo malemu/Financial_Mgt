@@ -26,6 +26,8 @@ type LinePoint = {
 
 const getAdminClient = () => createSupabaseAdminClient();
 
+const MAX_HISTORY_ROWS = 5000;
+
 const toWeekStartIso = (isoDate: string) => {
   const date = new Date(`${isoDate}T00:00:00Z`);
   const dayOffset = (date.getUTCDay() + 6) % 7;
@@ -103,7 +105,8 @@ export async function GET(request: Request) {
     .from("price_history")
     .select("date, open, high, low, close")
     .eq("ticker", ticker)
-    .order("date", { ascending: true });
+    .order("date", { ascending: false })
+    .limit(MAX_HISTORY_ROWS);
 
   if (error) {
     return NextResponse.json(
@@ -112,13 +115,15 @@ export async function GET(request: Request) {
     );
   }
 
-  const rows = (data ?? []).map((row) => ({
-    date: row.date as string,
-    open: Number(row.open),
-    high: Number(row.high),
-    low: Number(row.low),
-    close: Number(row.close),
-  })) as DailyRow[];
+  const rows = (data ?? [])
+    .map((row) => ({
+      date: row.date as string,
+      open: Number(row.open),
+      high: Number(row.high),
+      low: Number(row.low),
+      close: Number(row.close),
+    }))
+    .sort((a, b) => a.date.localeCompare(b.date)) as DailyRow[];
 
   if (!rows.length) {
     return NextResponse.json({ candles: [], ma50: [], ma200: [] });

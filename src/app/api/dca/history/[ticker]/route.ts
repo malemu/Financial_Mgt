@@ -7,6 +7,8 @@ const isValidDate = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value);
 
 const getAdminClient = () => createSupabaseAdminClient();
 
+const MAX_HISTORY_ROWS = 5000;
+
 type HistoryRow = {
   date: string;
   close: number;
@@ -47,8 +49,7 @@ export async function GET(
   let query = supabase
     .from("price_history")
     .select("date, close")
-    .eq("ticker", ticker)
-    .order("date", { ascending: true });
+    .eq("ticker", ticker);
 
   if (start) {
     query = query.gte("date", start);
@@ -57,7 +58,7 @@ export async function GET(
     query = query.lte("date", end);
   }
 
-  const { data, error } = await query;
+  const { data, error } = await query.order("date", { ascending: false }).limit(MAX_HISTORY_ROWS);
   if (error) {
     return NextResponse.json(
       { error: `Failed to load ${ticker} history: ${error.message}` },
@@ -65,10 +66,12 @@ export async function GET(
     );
   }
 
-  const rows = (data ?? []).map((row) => ({
-    date: row.date as string,
-    close: Number(row.close),
-  })) as HistoryRow[];
+  const rows = (data ?? [])
+    .map((row) => ({
+      date: row.date as string,
+      close: Number(row.close),
+    }))
+    .sort((a, b) => a.date.localeCompare(b.date)) as HistoryRow[];
 
   return NextResponse.json({
     ticker,
